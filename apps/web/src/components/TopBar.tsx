@@ -18,6 +18,7 @@ export function TopBar({ ctl }: { ctl: Controller }) {
       <div className="controls" role="group" aria-label="Simulation speed">
         <button onClick={() => ctl.togglePause()} aria-pressed={ctl.paused}>{ctl.paused ? '▶ Play' : '❚❚ Pause'}</button>
         {SPEEDS.map((sp) => <button key={sp} className={!ctl.paused && ctl.speed === sp ? 'on' : ''} onClick={() => ctl.setSpeed(sp)}>{sp}x</button>)}
+        <button onClick={() => ctl.setHelp(true)} title="How to play" aria-label="How to play">? Help</button>
         <button onClick={() => ctl.toggleMute()} aria-pressed={ctl.muted} title="Toggle sound (M)">{ctl.muted ? '🔇' : '🔊'}</button>
         <button onClick={() => ctl.simToYearEnd()} disabled={ctl.gameOver}>Sim to year-end</button>
         <button onClick={() => ctl.simTo2044()} disabled={ctl.gameOver}>Sim to {END_YEAR}</button>

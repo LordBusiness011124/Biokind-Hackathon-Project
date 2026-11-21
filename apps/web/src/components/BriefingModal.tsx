@@ -11,6 +11,7 @@ export function BriefingModal({ ctl }: { ctl: Controller }) {
       <div className="modal wide">
         <h2>MEPS briefing · {b.year}</h2>
         <p className="note">Your community is built from the 2024 Medical Expenditure Panel Survey. Predict the data, then see what it says. Each correct answer earns a {usd(2_500_000)} data-literacy grant <Badge kind="MODEL_ASSUMPTION" />.</p>
+        {sim.state.yearEvent && <div className="banner warn">Event this year: <b>{sim.state.yearEvent.label}</b>. {sim.state.yearEvent.description} <Badge kind="MODEL_ASSUMPTION" /></div>}
         <div className="card">
           <h3>What MEPS implies for your {b.year}</h3>
           <div className="grid4">{PLAYABLE.map((s) => (

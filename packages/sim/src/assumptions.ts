@@ -15,11 +15,14 @@ export interface Assumptions {
   };
   queue: { emergencyDiversionWaitTicks: number; inpatientDiversionWaitTicks: number; divertedPenaltyCents: Record<'emergency' | 'inpatient', number>; outpatientLeaveWaitTicks: number };
   hiring: { maxPerDepartment: number };
+  events: { list: EventDef[] };
+  scoring: { weights: Record<'finance' | 'access' | 'safety' | 'equity' | 'affordability' | 'dataIq', number> };
   scenario: {
     populationGrowthPerYear: number; utilizationDriftPerYear: number; medicalPriceInflationPerYear: number;
     wageInflationPerYear: number; generalInflationPerYear: number;
     ageBandGrowthPerYear: Record<string, number>; uninsuredShareShiftPerYear: number;
   };
 }
+export interface EventDef { id: string; label: string; description: string; probability: number; arrivalMult: Record<PlayableService, number>; uninsuredMult: number; wageMult: number }
 export const DEFAULT_ASSUMPTIONS = raw as unknown as Assumptions;
 export const RAW_ASSUMPTIONS = raw as Record<string, unknown>;

@@ -46,3 +46,8 @@ button:focus-visible { outline: 2px solid var(--amber); outline-offset: 1px; }
 .xv { text-align: right; font-size: 12px; } details { margin: 4px 0; } summary { cursor: pointer; color: var(--teal); }
 .pc-0-17, .pc-18-44, .pc-45-64, .pc-65\+ { background: #60a5fa; } .pc-65\+ { background: #f59e0b; } .pc-\<200\%FPL { background: #f59e0b; } .pc-200-399\%FPL { background: #60a5fa; } .pc-400\%\+FPL { background: #14b8a6; }
 .why p { margin: 6px 0; } .why ul { padding-left: 18px; } .why li { margin: 4px 0; } .why h4 { color: var(--text); font-size: 13px; }
+.grade { display: flex; align-items: center; gap: 12px; margin: 4px 0; } .grade b { font-size: 36px; line-height: 1; } .grade.big b { font-size: 56px; } .grade span { color: var(--mute); }
+.obj { margin: 8px 0; } .meter { height: 6px; background: #0b1220; margin: 3px 0; } .meter i { display: block; height: 100%; }
+.mission { border-color: var(--amber); } .mission h3 { color: var(--amber); } .mission h3 small { font-weight: 400; margin-left: 4px; }
+.how h3 { margin-top: 16px; } .how ol, .how ul { padding-left: 20px; } .how li { margin: 4px 0; }
+.chk { display: flex; gap: 8px; align-items: flex-start; font-size: 12px; color: var(--mute); margin: 10px 0; cursor: pointer; } .chk input { margin-top: 3px; }

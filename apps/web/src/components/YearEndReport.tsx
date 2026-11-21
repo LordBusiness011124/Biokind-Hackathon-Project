@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { END_YEAR, type AnnualSnapshot, type BandSummary } from '@hospital/sim';
 import { runBands, runControl, type Controller } from '../controller';
 import { usd, pct, hrs, num } from '../format';
+import { ScoreCard } from './ScoreCard';
 
 function Spark({ pts, color }: { pts: number[]; color: string }) {
   const w = 300, h = 60, mn = Math.min(...pts, 0), mx = Math.max(...pts, 1), rng = mx - mn || 1;
@@ -26,6 +27,8 @@ export function YearEndReport({ ctl }: { ctl: Controller }) {
       <div className="modal wide">
         <h2>{s.bankrupt ? `Bankrupt in ${r.year}` : last ? `Final report: ${all[0].year}–${r.year}` : `Year ${r.year} report`}</h2>
         {r.mode === 'DEMO_SYNTHETIC' && <div className="banner demo">DEMO MODE: SYNTHETIC PLACEHOLDER DATA</div>}
+        {r.event && <div className="banner warn">Event this year: <b>{r.event}</b></div>}
+        <ScoreCard ctl={ctl} final={last} />
         <div className="grid4">
           <div className="tile"><span>Net result</span><b className={r.netCents < 0 ? 'neg' : 'pos'}>{usd(r.netCents)}</b><small>rev {usd(r.revenueCents, true)} − cost {usd(r.expensesCents, true)}</small></div>
           <div className="tile"><span>Cash</span><b className={r.cashCents < 0 ? 'neg' : ''}>{usd(r.cashCents)}</b><small>start {usd(r.cashStartCents, true)}</small></div>
@@ -57,7 +60,7 @@ export function YearEndReport({ ctl }: { ctl: Controller }) {
         </>)}
         {all.length > 0 && (<>
           <h3>Your decisions vs. no intervention <small>(same seed, same arrivals, no actions)</small></h3>
-          {!co ? <button onClick={() => setCmp(runControl(ctl.asset, s.config.seed, all.length))}>Run control comparison</button> : (
+          {!co ? <button onClick={() => setCmp(runControl(ctl.asset, s.config.seed, all.length, s.events))}>Run control comparison</button> : (
             <table className="tbl"><thead><tr><th></th><th>You</th><th>No intervention</th></tr></thead><tbody>
               <tr><td>Cumulative net</td><td>{usd(me.net)}</td><td>{usd(co.net)}</td></tr>
               <tr><td>Final cash</td><td>{usd(me.cash)}</td><td>{usd(co.cash)}</td></tr>
@@ -70,7 +73,7 @@ export function YearEndReport({ ctl }: { ctl: Controller }) {
         </>)}
         {all.length > 0 && (<>
           <h3>How much is luck? <small>(your decisions, 20 other random seeds)</small></h3>
-          {!bands ? <button disabled={prog > 0} onClick={async () => setBands(await runBands(ctl.asset, s.actionLog, all.length, 20, setProg))}>{prog > 0 ? `Running… ${prog}/20` : 'Run 20-seed uncertainty bands'}</button> : (
+          {!bands ? <button disabled={prog > 0} onClick={async () => setBands(await runBands(ctl.asset, s.actionLog, all.length, 20, setProg, s.events))}>{prog > 0 ? `Running… ${prog}/20` : 'Run 20-seed uncertainty bands'}</button> : (
             <table className="tbl"><thead><tr><th></th><th>10th pct</th><th>Median</th><th>90th pct</th></tr></thead><tbody>
               <tr><td>Final cash</td><td>{usd(bands.finalCash.p10, true)}</td><td>{usd(bands.finalCash.median, true)}</td><td>{usd(bands.finalCash.p90, true)}</td></tr>
               <tr><td>Cumulative net</td><td>{usd(bands.cumulativeNet.p10, true)}</td><td>{usd(bands.cumulativeNet.median, true)}</td><td>{usd(bands.cumulativeNet.p90, true)}</td></tr>

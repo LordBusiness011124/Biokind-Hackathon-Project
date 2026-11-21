@@ -53,6 +53,7 @@ export interface AnnualSnapshot {
   byIncome: Record<string, GroupStats>;
   patientOopCents: number; subsidizedOopCents: number; avgOopPerVisitCents: number;
   decisions: string[];
+  event: string | null;
   provenance: ModelProvenance[];
 }
 

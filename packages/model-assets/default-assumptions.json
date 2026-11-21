@@ -137,5 +137,60 @@
     },
     "uninsuredShareShiftPerYear": 0.0,
     "evidence": "none: illustrative scenario defaults, not CPS/Census/CMS projections"
+  },
+  "events": {
+    "_note": "Challenge mode only (opt-in). Seeded per (seed, year) so decisions never change which event happens. Effects are illustrative MODEL_ASSUMPTIONs, not epidemiological or economic facts.",
+    "list": [
+      {
+        "id": "flu",
+        "label": "Severe flu season",
+        "description": "Respiratory illness surges: more ER, clinic and admissions this year.",
+        "probability": 0.1,
+        "arrivalMult": {
+          "emergency": 1.25,
+          "outpatient": 1.15,
+          "inpatient": 1.15
+        },
+        "uninsuredMult": 1,
+        "wageMult": 1
+      },
+      {
+        "id": "recession",
+        "label": "Regional recession",
+        "description": "Job losses raise the uninsured share and trim elective clinic visits this year.",
+        "probability": 0.08,
+        "arrivalMult": {
+          "emergency": 1,
+          "outpatient": 0.95,
+          "inpatient": 1
+        },
+        "uninsuredMult": 1.35,
+        "wageMult": 1
+      },
+      {
+        "id": "staffing",
+        "label": "Staffing shortage",
+        "description": "Competition for clinicians pushes wages up 10% this year.",
+        "probability": 0.08,
+        "arrivalMult": {
+          "emergency": 1,
+          "outpatient": 1,
+          "inpatient": 1
+        },
+        "uninsuredMult": 1,
+        "wageMult": 1.1
+      }
+    ]
+  },
+  "scoring": {
+    "_note": "Scorecard weights are game design (MODEL_ASSUMPTION).",
+    "weights": {
+      "finance": 0.3,
+      "access": 0.2,
+      "safety": 0.15,
+      "equity": 0.15,
+      "affordability": 0.1,
+      "dataIq": 0.1
+    }
   }
 }

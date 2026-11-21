@@ -11,11 +11,14 @@ An isometric pixel-art hospital management game where **the MEPS 2024 data is th
 - **Reports:** year-end and final reports compare your patient mix to the MEPS population, show equity and affordability, a no-intervention comparison, and 20-seed variability bands.
 - Every number is labelled MEPS_OBSERVED / MEPS_CALIBRATED / MODEL_ASSUMPTION / SIMULATED / DEMO_SYNTHETIC. Without the data asset the app runs in a clearly bannered DEMO mode.
 
+## Goal and how to play
+Run a community hospital from 2024 to 2044 and **keep it open and fair**: stay solvent, treat nearly everyone, keep the ER safe, give every insurance group similar care, and keep care affordable. You earn a letter grade on six weighted objectives (finance, access, emergency safety, equity, affordability, data IQ), not just cash. Press **? Help** in the game for the full guide, including what players should take away. Optional **Challenge mode** adds seeded yearly events (flu surge, recession, staffing shortage).
+
 ## Run
 ```
 npm install
 npm run dev        # http://localhost:5173
-npm test           # 24 sim/data/teaching tests (vitest)
+npm test           # 28 sim/data/teaching tests (vitest)
 npm run build      # typecheck + production build
 ```
 Controls: WASD/arrows move, E interacts (desk, consoles, reception board, kiosk), Space pauses, M mutes, wheel zooms.

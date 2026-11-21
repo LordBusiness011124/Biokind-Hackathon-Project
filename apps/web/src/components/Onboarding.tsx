@@ -13,9 +13,11 @@ export function Onboarding({ ctl, onClose }: { ctl: Controller; onClose: () => v
           <li><b>MEPS is your guide.</b> Each year opens with a short data briefing: predict a real statistic from the survey, see the answer with its confidence interval, and earn a small grant for getting it right. The <b>Data Coach</b> in Manage turns MEPS rates into staffing advice, and the <b>MEPS Lab</b> lets you explore who uses care and what payers pay.</li>
           <li>Finish each year with a scorecard covering cash, access, affordability and equity, through <b>2044</b>.</li>
         </ul>
+        <label className="chk"><input type="checkbox" checked={ctl.challenge} onChange={(e) => ctl.setChallenge(e.target.checked)} /> Challenge mode: random yearly events (flu surge, recession, staffing shortage). Optional; they are scenario assumptions, not predictions.</label>
         <p className="note">Scenario game, not a forecast. Everything not survey-derived is labelled MODEL ASSUMPTION.</p>
         <div className="row">
           <button className="primary" onClick={() => { onClose(); ctl.openBriefing(true); }}>Start 2024</button>
+          <button onClick={() => ctl.setHelp(true)}>How to play</button>
           <button onClick={() => { onClose(); ctl.openTab('why'); }}>Why MEPS matters first</button>
           {ctl.hasSave() && <button onClick={() => { ctl.load(); onClose(); }}>Continue saved game</button>}
         </div>

@@ -4,3 +4,4 @@
 - Teaching: yearly MEPS briefing quiz (generated from data), Data Coach, MEPS Lab explorer, patient-mix-vs-MEPS report.
 - Game: isometric procedural pixel art, pathfinding staff/patients, sound, save/load/export, responsive layout, lazy-loaded Phaser.
 - Known limits: single-year cross-section (2044 is a scenario); catchment/hospital share/costs are assumptions; payments are not hospital revenue; single-PSU strata skipped in variance.
+- Added: How to Play guide (goal, loop, controls, scoring, learning outcomes), live Mission card and graded scorecard, Challenge mode events, Why MEPS tab.

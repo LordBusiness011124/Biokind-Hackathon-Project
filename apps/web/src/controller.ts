@@ -1,5 +1,5 @@
 import { audio, sfx } from './audio';
-import { buildQuestions, replay, summarize, Simulation, type Question, makeDemoAsset, validateAsset, deserialize, serialize, END_YEAR, type Action, type ActionResult, type AnnualSnapshot, type ModelAsset, type SimEvent, type Visit } from '@hospital/sim';
+import { buildQuestions, replay, scorecard, summarize, Simulation, type Question, type Scorecard, makeDemoAsset, validateAsset, deserialize, serialize, END_YEAR, type Action, type ActionResult, type AnnualSnapshot, type ModelAsset, type SimEvent, type Visit } from '@hospital/sim';
 
 export type { };
 const SAVE_KEY = 'ht2044-save-v1';
@@ -13,13 +13,13 @@ export function loadAsset(): { asset: ModelAsset; error?: string } {
 }
 
 /** Headless no-intervention branch with the same seed (decisions are the only difference). */
-export function runControl(asset: ModelAsset, seed: number, years: number): AnnualSnapshot[] {
-  return replay(asset, seed, [], years, undefined, 'control').state.snapshots;
+export function runControl(asset: ModelAsset, seed: number, years: number, events = false): AnnualSnapshot[] {
+  return replay(asset, seed, [], years, undefined, 'control', events).state.snapshots;
 }
 /** Re-run the player's decisions under other seeds, yielding to the UI between runs. */
-export async function runBands(asset: ModelAsset, log: Controller['sim']['state']['actionLog'], years: number, n = 20, onProgress?: (i: number) => void) {
+export async function runBands(asset: ModelAsset, log: Controller['sim']['state']['actionLog'], years: number, n = 20, onProgress?: (i: number) => void, events = false) {
   const runs: Simulation[] = [];
-  for (let i = 0; i < n; i++) { await new Promise((r) => setTimeout(r, 0)); runs.push(replay(asset, 1000 + i, log, years)); onProgress?.(i + 1); }
+  for (let i = 0; i < n; i++) { await new Promise((r) => setTimeout(r, 0)); runs.push(replay(asset, 1000 + i, log, years, undefined, 'replay', events)); onProgress?.(i + 1); }
   return summarize(runs);
 }
 
@@ -29,7 +29,7 @@ const TICKS_PER_SECOND_AT_1X = 2; // 1 tick = 1 simulated hour
 
 export class Controller {
   sim: Simulation; asset: ModelAsset; assetError?: string;
-  muted = false;
+  muted = false; showHelp = false; challenge = false;
   briefing: { year: number; questions: Question[]; picked: (number | null)[] } | null = null;
   literacy = { asked: 0, correct: 0, grantsCents: 0 };
   private autoplayAfterBriefing = false;
@@ -99,6 +99,10 @@ export class Controller {
     this.emit();
   }
   closeBriefing() { this.briefing = null; if (this.autoplayAfterBriefing) { this.autoplayAfterBriefing = false; this.setSpeed(1); } this.emit(); }
+  setHelp(on: boolean) { this.showHelp = on; this.emit(); }
+  /** Only valid before the first year starts (intro screen). Challenge mode adds seeded yearly events. */
+  setChallenge(on: boolean) { this.challenge = on; this.sim = Simulation.create(this.asset, this.sim.state.config.seed, undefined, 'baseline', on); this.emit(); }
+  get card(): Scorecard { return scorecard(this.sim.state.snapshots, this.sim.a, { bankrupt: this.sim.state.bankrupt, finished: this.sim.state.finished, dataIq: this.literacy }); }
   togglePause() { if (!this.report && !this.briefing) this.paused = !this.paused; this.emit(); }
   setSpeed(s: (typeof SPEEDS)[number]) { this.speed = s; this.paused = false; this.emit(); }
   act(a: Action): ActionResult { const r = this.sim.applyAction(a); if (!r.ok) this.say(`Action failed: ${r.error}`); this.emit(); return r; }
@@ -112,14 +116,14 @@ export class Controller {
   get gameOver() { return this.sim.state.finished || this.sim.state.bankrupt; }
   select(v: Visit | null) { this.selected = v; this.emit(); }
   openTab(tab: string) { this.focusTab = tab; this.tabNonce++; this.emit(); }
-  restart(seed?: number) { this.literacy = { asked: 0, correct: 0, grantsCents: 0 }; this.briefing = null; this.sim = Simulation.create(this.asset, seed ?? this.sim.state.config.seed); this.report = null; this.paused = true; this.events = []; this.messages = []; this.say('New game.'); this.emit(); }
+  restart(seed?: number) { this.literacy = { asked: 0, correct: 0, grantsCents: 0 }; this.briefing = null; this.sim = Simulation.create(this.asset, seed ?? this.sim.state.config.seed, undefined, 'baseline', this.challenge); this.report = null; this.paused = true; this.events = []; this.messages = []; this.say('New game.'); this.emit(); }
 
   save() { try { localStorage.setItem(SAVE_KEY, serialize(this.sim.state)); } catch { /* storage unavailable */ } }
   hasSave(): boolean { try { return !!localStorage.getItem(SAVE_KEY); } catch { return false; } }
   load(json?: string): boolean {
     try {
       const raw = json ?? localStorage.getItem(SAVE_KEY); if (!raw) return false;
-      const st = deserialize(raw); this.sim = new Simulation(this.asset, st); this.report = null; this.paused = true; this.events = [];
+      const st = deserialize(raw); this.challenge = st.events; this.sim = new Simulation(this.asset, st); this.report = null; this.paused = true; this.events = [];
       this.say(`Loaded save (${st.year}).`); this.emit(); return true;
     } catch (e) { this.say(`Could not load save: ${(e as Error).message}`); this.emit(); return false; }
   }

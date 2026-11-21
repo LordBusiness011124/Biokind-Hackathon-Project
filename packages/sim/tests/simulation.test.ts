@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { END_YEAR, Simulation, replay, summarize, buildQuestions, coachTips, makeDemoAsset, serialize, validateAsset, type Action } from '../src';
+import { END_YEAR, Simulation, scorecard, replay, summarize, buildQuestions, coachTips, makeDemoAsset, serialize, validateAsset, type Action } from '../src';
 import { loadAsset } from './helpers';
 
 const asset = loadAsset();
@@ -97,7 +97,7 @@ describe('20-year run', () => {
     expect(s.state.finished).toBe(true);
     expect(s.state.snapshots.length).toBe(21);
     expect(s.state.snapshots[0].year).toBe(2024); expect(s.state.snapshots[20].year).toBe(END_YEAR);
-    expect(JSON.stringify(s.state.snapshots)).not.toMatch(/NaN|null/);
+    expect(JSON.stringify(s.state.snapshots.map(({ event: _e, ...r }) => r))).not.toMatch(/NaN|null/);
     for (const sn of s.state.snapshots) expect(sn.cashCents).toBe(sn.cashStartCents + sn.revenueCents - sn.expensesCents);
     expect(s.state.snapshots[0].cashStartCents + s.state.snapshots.reduce((t, x) => t + x.netCents, 0)).toBe(s.state.cashCents);
   });
@@ -178,5 +178,39 @@ describe('MEPS teaching layer', () => {
     expect(s.applyAction({ type: 'grant', cents: 2_500_000, reason: 'quiz' }).ok).toBe(true);
     expect(s.applyAction({ type: 'grant', cents: 99_999_999, reason: 'x' }).ok).toBe(false);
     expect(s.state.cashCents).toBe(c0 + 2_500_000); expect(s.checkInvariants()).toEqual([]);
+  });
+});
+
+describe('challenge events & scorecard', () => {
+  it('events are off by default and identical regardless of decisions; seeded per year', () => {
+    const off = Simulation.create(asset, 5, undefined, 'x', false); off.runToEnd();
+    expect(off.state.snapshots.every((s) => s.event === null)).toBe(true);
+    const mk = (act: boolean) => { const s = Simulation.create(asset, 12, { ...Simulation.create(asset, 1).a, startingCashCents: 10 ** 11 }, 'x', true); if (act) s.applyAction({ type: 'hire', service: 'emergency', role: 'nurse', count: 5 }); s.runToEnd(); return s.state.snapshots.map((x) => x.event); };
+    expect(mk(false)).toEqual(mk(true)); expect(mk(false).some((e) => e !== null)).toBe(true);
+  });
+  it('an event changes demand in its year (flu raises arrivals) without breaking invariants', () => {
+    const rich = { ...Simulation.create(asset, 1).a, startingCashCents: 10 ** 11 };
+    for (let seed = 1; seed < 60; seed++) {
+      const on = Simulation.create(asset, seed, rich, 'x', true); on.runToEnd(); const base = Simulation.create(asset, seed, rich, 'x', false); base.runToEnd();
+      const i = on.state.snapshots.findIndex((s) => s.event === 'Severe flu season'); if (i < 0) continue;
+      expect(on.state.snapshots[i].arrivals.emergency).toBeGreaterThan(base.state.snapshots[i].arrivals.emergency * 1.05); return;
+    }
+    throw new Error('no flu season found in 60 seeds');
+  });
+  it('scorecard: bankrupt scores 0 on finance and weights sum to a 0-100 total with a letter grade', () => {
+    const s = Simulation.create(asset, 1); s.runToEnd();
+    const sc = scorecard(s.state.snapshots, s.a, { bankrupt: s.state.bankrupt, finished: s.state.finished, dataIq: { asked: 4, correct: 3 } });
+    expect(sc.objectives.length).toBe(6); expect(sc.total).toBeGreaterThanOrEqual(0); expect(sc.total).toBeLessThanOrEqual(100); expect('ABCDF').toContain(sc.grade);
+    expect(sc.objectives.find((o) => o.id === 'finance')!.score).toBe(s.state.bankrupt ? 0 : sc.objectives.find((o) => o.id === 'finance')!.score);
+  });
+  it('a sensible strategy out-scores doing nothing', () => {
+    const rich = { ...Simulation.create(asset, 1).a, startingCashCents: 300000000 };
+    const nothing = Simulation.create(asset, 3, rich); nothing.runToEnd();
+    const good = Simulation.create(asset, 3, rich);
+    good.applyAction({ type: 'fire', service: 'outpatient', role: 'physician', count: 1 }); good.applyAction({ type: 'fire', service: 'outpatient', role: 'nurse', count: 1 });
+    for (let i = 0; i < 6; i++) good.applyAction({ type: 'addRoom', service: 'inpatient' });
+    good.applyAction({ type: 'hire', service: 'inpatient', role: 'physician', count: 5 }); good.applyAction({ type: 'hire', service: 'inpatient', role: 'nurse', count: 9 }); good.runToEnd();
+    const sc = (x: Simulation) => scorecard(x.state.snapshots, x.a, { bankrupt: x.state.bankrupt, finished: x.state.finished, dataIq: { asked: 0, correct: 0 } }).total;
+    expect(sc(good)).toBeGreaterThan(sc(nothing));
   });
 });

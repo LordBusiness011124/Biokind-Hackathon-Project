@@ -1,4 +1,4 @@
-import { DEFAULT_ASSUMPTIONS, type Assumptions } from './assumptions';
+import { DEFAULT_ASSUMPTIONS, type Assumptions, type EventDef } from './assumptions';
 import { assetProvenance, type EventDist, type ModelAsset, type PaymentDist } from './assets';
 import { makeRng, next, pickCumulative, poisson, type RngState } from './rng';
 import {
@@ -22,11 +22,12 @@ function profileFor(service: PlayableService, a: Assumptions): number[] {
 function norm(a: number[]) { const s = a.reduce((x, y) => x + y, 0); return a.map((v) => v / s); }
 
 interface ServiceModel { cum: number[]; cellIdx: number[]; annualEvents: number; }
-export interface Config { seed: number; scenarioId: string; assumptions: Assumptions; }
+export interface Config { seed: number; scenarioId: string; assumptions: Assumptions; events?: boolean; }
 
 export interface SimState {
   version: 1;
   config: { seed: number; scenarioId: string };
+  events: boolean; yearEvent: EventDef | null;
   year: number; tick: number; yearStartTick: number; finished: boolean; bankrupt: boolean; insolventDays: number;
   cashCents: number; cashStartOfYearCents: number;
   rng: RngState; nextVisitId: number;
@@ -52,7 +53,7 @@ export function createInitialState(cfg: Partial<Config> & { seed: number }): Sim
   const dept = (service: PlayableService, rooms: number, phys: number, nurses: number): Department =>
     ({ id: service, service, roomSlots: rooms, physicians: phys, nurses, queue: [], inService: [], capacityCredit: 0 });
   return {
-    version: 1, config: { seed: cfg.seed, scenarioId: cfg.scenarioId ?? 'baseline' },
+    version: 1, config: { seed: cfg.seed, scenarioId: cfg.scenarioId ?? 'baseline' }, events: cfg.events ?? false, yearEvent: null,
     year: START_YEAR, tick: 0, yearStartTick: 0, finished: false, bankrupt: false, insolventDays: 0,
     cashCents: a.startingCashCents, cashStartOfYearCents: a.startingCashCents,
     rng: makeRng(cfg.seed), nextVisitId: 1,
@@ -81,8 +82,8 @@ export class Simulation {
       this.oopShare[`${svc}:${py}`] = fm > 0 ? Math.min(1, Math.max(0, om / fm)) : 0;
     }
   }
-  static create(asset: ModelAsset, seed: number, assumptions = DEFAULT_ASSUMPTIONS, scenarioId = 'baseline') {
-    return new Simulation(asset, createInitialState({ seed, assumptions, scenarioId }), assumptions);
+  static create(asset: ModelAsset, seed: number, assumptions = DEFAULT_ASSUMPTIONS, scenarioId = 'baseline', events = false) {
+    return new Simulation(asset, createInitialState({ seed, assumptions, scenarioId, events }), assumptions);
   }
 
   // ----- population model for the current year -----
@@ -92,7 +93,7 @@ export class Simulation {
     const n = yrs(this.state), sc = this.a.scenario, cells = this.asset.cells;
     const w = cells.map((c) => {
       let f = idx(sc.ageBandGrowthPerYear[c.ageBand] ?? 0, n);
-      if (c.payer === 'uninsured') f *= Math.max(0, 1 + sc.uninsuredShareShiftPerYear * n);
+      if (c.payer === 'uninsured') f *= Math.max(0, 1 + sc.uninsuredShareShiftPerYear * n) * (this.state.yearEvent?.uninsuredMult ?? 1);
       return c.share * f;
     });
     const tw = w.reduce((x, y) => x + y, 0);
@@ -100,7 +101,7 @@ export class Simulation {
     for (const svc of PLAYABLE) {
       const cum: number[] = []; let acc = 0, expectedPerPerson = 0;
       cells.forEach((c, i) => { const m = (w[i] / tw) * c.ratesPerPersonYear[svc]; acc += m; cum.push(acc); expectedPerPerson += m; });
-      const annual = this.population() * expectedPerPerson * idx(sc.utilizationDriftPerYear, n) * this.a.hospitalShare[svc];
+      const annual = this.population() * expectedPerPerson * idx(sc.utilizationDriftPerYear, n) * this.a.hospitalShare[svc] * (this.state.yearEvent?.arrivalMult[svc] ?? 1);
       models[svc] = { cum: cum.map((x) => x + 1e-15), cellIdx: cells.map((_, i) => i), annualEvents: annual };
     }
     this.models = models; this.modelYear = this.state.year;
@@ -314,7 +315,7 @@ export class Simulation {
       staffCost += d.physicians * c.physicianSalaryCents + d.nurses * c.nurseSalaryCents;
       upkeep += d.roomSlots * c.roomUpkeepPerYearCents[svc];
     }
-    this.book('cost.payroll', Math.round((staffCost * idx(sc.wageInflationPerYear, n)) / 365), 'payroll');
+    this.book('cost.payroll', Math.round((staffCost * idx(sc.wageInflationPerYear, n) * (s.yearEvent?.wageMult ?? 1)) / 365), 'payroll');
     this.book('cost.upkeep', Math.round((upkeep * idx(sc.generalInflationPerYear, n)) / 365), 'upkeep');
     this.book('cost.overhead', Math.round((c.overheadPerYearCents * idx(sc.generalInflationPerYear, n)) / 365), 'overhead');
     const pu = c.processImprovementUpkeepCents[s.processLevel];
@@ -347,7 +348,7 @@ export class Simulation {
       unmetDemand: acc.unmet.emergency + acc.unmet.outpatient + acc.unmet.inpatient,
       byPayer: acc.byPayer, byIncome: acc.byIncome, patientOopCents: acc.oop, subsidizedOopCents: acc.subsidized,
       avgOopPerVisitCents: treatedAll ? Math.round(acc.oop / treatedAll) : 0,
-      decisions: [...s.decisionsThisYear],
+      decisions: [...s.decisionsThisYear], event: s.yearEvent?.label ?? null,
       provenance: [...assetProvenance(this.asset),
         { kind: 'MODEL_ASSUMPTION', sourceId: 'default-assumptions.json', method: 'Hospital share, staffing, unit costs, scenario drift', assumptions: ['Not survey findings'] },
         { kind: 'SIMULATED', sourceId: 'sim', method: 'Queue/capacity outcomes after player decisions' }],
@@ -357,6 +358,15 @@ export class Simulation {
     // transition
     s.year++; s.yearStartTick = s.tick; s.cashStartOfYearCents = s.cashCents; s.ledger = zeroLedger(); s.yearAcc = freshAcc(); s.decisionsThisYear = [];
     s.subsidyRemainingCents = s.subsidyBudgetCents;
+    s.yearEvent = this.rollEvent();
+  }
+
+  /** Challenge-mode event for the current year: a pure function of (seed, year), so player decisions never change it. */
+  private rollEvent(): EventDef | null {
+    const s = this.state; if (!s.events) return null;
+    const u = next(makeRng(Math.imul(s.config.seed + 1, 7919) + Math.imul(s.year, 104729)));
+    let acc = 0; for (const e of this.a.events.list) { acc += e.probability; if (u < acc) return e; }
+    return null;
   }
 
   /** Fast-forward to the end of the current year (or the end of the game). */
@@ -386,14 +396,14 @@ export function serialize(s: SimState): string { return JSON.stringify(s); }
 export function deserialize(json: string): SimState {
   const s = JSON.parse(json) as SimState;
   if (s?.version !== 1 || !s.departments?.emergency || !s.departments.inpatient || !s.rng) throw new Error('Corrupt or incompatible save.');
-  s.actionLog ??= [];
+  s.actionLog ??= []; s.events ??= false; s.yearEvent ??= null;
   return s;
 }
 export type { PayerGroup };
 
 /** Re-run the same decisions (same ticks) under another seed, for the given number of years. Empty log = no-intervention control. */
-export function replay(asset: ModelAsset, seed: number, log: { tick: number; action: Action }[], years: number, assumptions: Assumptions = DEFAULT_ASSUMPTIONS, scenarioId = 'replay'): Simulation {
-  const s = Simulation.create(asset, seed, assumptions, scenarioId); let i = 0;
+export function replay(asset: ModelAsset, seed: number, log: { tick: number; action: Action }[], years: number, assumptions: Assumptions = DEFAULT_ASSUMPTIONS, scenarioId = 'replay', events = false): Simulation {
+  const s = Simulation.create(asset, seed, assumptions, scenarioId, events); let i = 0;
   while (!s.state.finished && !s.state.bankrupt && s.state.snapshots.length < years) {
     if (i < log.length && s.state.tick >= log[i].tick) { s.applyAction(log[i].action); i++; continue; }
     const room = i < log.length ? log[i].tick - s.state.tick : assumptions.hoursPerYear;

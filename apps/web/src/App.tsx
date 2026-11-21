@@ -8,6 +8,7 @@ import { AssumptionsPanel } from './components/AssumptionsPanel';
 import { YearEndReport } from './components/YearEndReport';
 import { BriefingModal } from './components/BriefingModal';
 import { WhyMeps } from './components/WhyMeps';
+import { HowToPlay } from './components/HowToPlay';
 import { Onboarding } from './components/Onboarding';
 
 const TABS = [['manage', 'Manage'], ['data', 'MEPS Lab'], ['why', 'Why MEPS'], ['about', 'About']] as const;
@@ -36,6 +37,7 @@ export default function App() {
         </aside>
       </main>
       <footer className="ticker" aria-live="polite">{warn > 0 && <b className="warn-chip">⚠ ER overloaded: {warn} transferred/left unseen this year</b>}{ctl.messages.slice(0, 3).map((m, i) => <span key={i}>{m}</span>)}</footer>
+      {ctl.showHelp && <HowToPlay ctl={ctl} />}
       {intro && <Onboarding ctl={ctl} onClose={() => setIntro(false)} />}
       {!intro && ctl.briefing && !ctl.report && <BriefingModal ctl={ctl} />}
       {!intro && ctl.report && <YearEndReport ctl={ctl} />}
