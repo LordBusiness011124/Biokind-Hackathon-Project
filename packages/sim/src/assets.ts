@@ -1,8 +1,8 @@
 import type { ModelProvenance, PayerGroup, ProvenanceKind, ServiceType } from './types';
 
-export interface PaymentDist { mean: number; tailMean?: number; zeroShare: number; quantileGrid: number[]; quantiles: number[]; }
+export interface PaymentDist { mean: number; tailMean?: number; zeroShare?: number; quantileGrid: number[]; quantiles: number[]; }
 export interface EventDist {
-  nEvents: number; weightedEvents: number; source?: string;
+  nEvents: number; weightedEvents: number; source?: string; nights?: PaymentDist;
   facilityPaymentCents: PaymentDist; physicianPaymentCents: PaymentDist; facilityOutOfPocketCents: PaymentDist;
 }
 export interface AssetCell {
@@ -37,7 +37,7 @@ export function assetProvenance(a: ModelAsset): ModelProvenance[] {
 export function makeDemoAsset(): ModelAsset {
   const grid = Array.from({ length: 21 }, (_, i) => i / 20);
   const pd = (m: number): PaymentDist => ({ mean: m, zeroShare: 0, quantileGrid: grid, quantiles: grid.map((q) => Math.round(m * (0.2 + 1.6 * q * q))) });
-  const ed = (m: number): EventDist => ({ nEvents: 0, weightedEvents: 0, source: 'demo', facilityPaymentCents: pd(m), physicianPaymentCents: pd(m / 5), facilityOutOfPocketCents: pd(m / 10) });
+  const ed = (m: number): EventDist => ({ nights: { mean: 4, quantileGrid: grid, quantiles: grid.map((q) => 1 + Math.round(6 * q * q)) }, nEvents: 0, weightedEvents: 0, source: 'demo', facilityPaymentCents: pd(m), physicianPaymentCents: pd(m / 5), facilityOutOfPocketCents: pd(m / 10) });
   const payments = {} as ModelAsset['payments'];
   (['emergency', 'outpatient', 'inpatient'] as ServiceType[]).forEach((s) => {
     const m = s === 'emergency' ? 100000 : s === 'outpatient' ? 60000 : 1500000;

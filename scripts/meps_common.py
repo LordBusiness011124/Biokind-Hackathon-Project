@@ -89,3 +89,19 @@ def wquantiles(values: np.ndarray, weights: np.ndarray, qs: list[float]) -> list
 
 def cents(x: float) -> int:
     return int(round(float(x) * 100))
+
+
+def ratio_se(df: pd.DataFrame, y: np.ndarray, x: np.ndarray | None = None) -> tuple[float, float]:
+    """Design-based ratio estimate sum(w*y)/sum(w*x) and its Taylor-linearised standard error
+    using MEPS strata (VARSTR) and PSUs (VARPSU), with-replacement variance within strata.
+    Strata with a single PSU are skipped (contributes no variance; documented limitation)."""
+    w = df.PERWT24F.values.astype(float)
+    x = np.ones_like(w) if x is None else x.astype(float)
+    den = float((w * x).sum()); r = float((w * y).sum() / den)
+    z = pd.DataFrame({"h": df.VARSTR.values, "c": df.VARPSU.values, "z": w * (y - r * x) / den})
+    psu = z.groupby(["h", "c"]).z.sum().reset_index()
+    var = 0.0
+    for _, g in psu.groupby("h"):
+        n = len(g)
+        if n > 1: var += n / (n - 1) * float(((g.z - g.z.mean()) ** 2).sum())
+    return r, float(np.sqrt(var))

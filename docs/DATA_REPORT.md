@@ -23,6 +23,17 @@ Model version `meps2024-v1` · provenance `MEPS_CALIBRATED` · 18683 persons wit
 - inpatient: 0.084
 - outpatient: 1.000
 
+## Design-based standard errors (95% CI = est ± 1.96·SE)
+
+- payer medicaid: 19.4% ± 1.5%
+- payer medicare: 20.6% ± 1.0%
+- payer other: 1.6% ± 0.4%
+- payer private: 51.8% ± 1.9%
+- payer uninsured: 6.5% ± 0.8%
+- emergency per person-year: 0.201 ± 0.011
+- inpatient per person-year: 0.084 ± 0.006
+- outpatient per person-year: 1.000 ± 0.090
+
 ## Event vs person file reconciliation
 
 - emergency: ratio 1.000; facility payments $77.0B; physician payments $18.8B; person-file service expenditure $95.8B
@@ -36,6 +47,7 @@ Model version `meps2024-v1` · provenance `MEPS_CALIBRATED` · 18683 persons wit
 - emergency: 4351 events raw -> 4261 after weight>0 + person join (no duplication)
 - outpatient: 22150 events raw -> 21956 after weight>0 + person join (no duplication)
 - inpatient: 1912 events raw -> 1881 after weight>0 + person join (no duplication)
+- design-based SEs computed (strata/PSU)
 
 ## Result
 

@@ -15,6 +15,7 @@ const RING = 100;
 const ER_PROFILE = norm([2, 1.6, 1.4, 1.2, 1.2, 1.4, 1.8, 2.6, 3.6, 4.4, 4.8, 5, 5, 4.8, 4.6, 4.6, 4.8, 5, 5, 4.8, 4.2, 3.6, 3, 2.4]);
 function profileFor(service: PlayableService, a: Assumptions): number[] {
   if (service === 'emergency') return ER_PROFILE;
+  if (service === 'inpatient') return norm(Array(24).fill(1));
   const [o, c] = a.staffing.outpatient.openHours;
   return norm(Array.from({ length: 24 }, (_, h) => (h >= o && h < c ? 1 : 0)));
 }
@@ -35,6 +36,7 @@ export interface SimState {
   yearAcc: YearAcc;
   snapshots: AnnualSnapshot[];
   decisionsThisYear: string[];
+  actionLog: { tick: number; action: Action }[];
 }
 interface YearAcc {
   arrivals: ServiceMap<number>; treated: ServiceMap<number>; unmet: ServiceMap<number>; waitSum: ServiceMap<number>;
@@ -42,7 +44,7 @@ interface YearAcc {
 }
 const gs = (): GroupStats => ({ arrivals: 0, treated: 0, unmet: 0, waitTicksSum: 0, oopCents: 0, subsidizedOopCents: 0 });
 const zeroLedger = (): LedgerTotals => Object.fromEntries(LEDGER_CATEGORIES.map((c) => [c, 0])) as LedgerTotals;
-const sm = (): ServiceMap<number> => ({ emergency: 0, outpatient: 0 });
+const sm = (): ServiceMap<number> => ({ emergency: 0, outpatient: 0, inpatient: 0 });
 const freshAcc = (): YearAcc => ({ arrivals: sm(), treated: sm(), unmet: sm(), waitSum: sm(), byPayer: {}, byIncome: {}, oop: 0, subsidized: 0 });
 
 export function createInitialState(cfg: Partial<Config> & { seed: number }): SimState {
@@ -54,9 +56,9 @@ export function createInitialState(cfg: Partial<Config> & { seed: number }): Sim
     year: START_YEAR, tick: 0, yearStartTick: 0, finished: false, bankrupt: false, insolventDays: 0,
     cashCents: a.startingCashCents, cashStartOfYearCents: a.startingCashCents,
     rng: makeRng(cfg.seed), nextVisitId: 1,
-    departments: { emergency: dept('emergency', 3, 5, 9), outpatient: dept('outpatient', 3, 4, 4) },
+    departments: { emergency: dept('emergency', 3, 5, 9), outpatient: dept('outpatient', 3, 4, 4), inpatient: dept('inpatient', 0, 0, 0) },
     processLevel: 0, subsidyBudgetCents: 0, subsidyRemainingCents: 0,
-    ledger: zeroLedger(), recent: [], yearAcc: freshAcc(), snapshots: [], decisionsThisYear: [],
+    ledger: zeroLedger(), recent: [], yearAcc: freshAcc(), snapshots: [], decisionsThisYear: [], actionLog: [],
   };
 }
 
@@ -106,7 +108,7 @@ export class Simulation {
   /** Expected annual hospital arrivals per service for the current year (before Poisson noise). */
   expectedAnnualArrivals(): ServiceMap<number> {
     if (this.modelYear !== this.state.year) this.buildModels();
-    return { emergency: this.models!.emergency.annualEvents, outpatient: this.models!.outpatient.annualEvents };
+    return { emergency: this.models!.emergency.annualEvents, outpatient: this.models!.outpatient.annualEvents, inpatient: this.models!.inpatient.annualEvents };
   }
   /** Shares of arrivals by payer (current-year mix) for the "Why these patients?" panel. */
   payerMix(svc: PlayableService): Record<string, number> {
@@ -122,7 +124,8 @@ export class Simulation {
     const st = this.a.staffing[d.service];
     const physCap = d.physicians / (st.fteToCoverPost * st.physiciansPerPost);
     const nurseCap = d.nurses / (st.fteToCoverPost * st.nursesPerPost);
-    return Math.max(0, Math.min(d.roomSlots, physCap, nurseCap));
+    const bps = st.bedsPerPost ?? 1;
+    return Math.max(0, Math.min(d.roomSlots, physCap * bps, nurseCap * bps));
   }
   /** Servers available this tick (deterministic fractional-credit scheme; never negative). */
   private servers(d: Department, hour: number): number {
@@ -142,6 +145,11 @@ export class Simulation {
     s.recent.push({ tick: s.tick, category: cat, cents, ref }); if (s.recent.length > RING) s.recent.shift();
   }
   applyAction(act: Action): ActionResult {
+    const r = this.applyActionInner(act);
+    if (r.ok) this.state.actionLog.push({ tick: this.state.tick, action: act });
+    return r;
+  }
+  private applyActionInner(act: Action): ActionResult {
     const s = this.state, a = this.a;
     if (s.finished || s.bankrupt) return { ok: false, error: 'Game is over.' };
     const log = (m: string) => s.decisionsThisYear.push(`${s.year}: ${m}`);
@@ -157,7 +165,7 @@ export class Simulation {
       case 'addRoom': {
         const cost = Math.round(a.costs.roomBuildCostCents[act.service] * idx(a.scenario.generalInflationPerYear, yrs(s)));
         if (s.cashCents < cost) return { ok: false, error: `Insufficient funds: need $${(cost / 100).toLocaleString()}.` };
-        if (s.departments[act.service].roomSlots >= 20) return { ok: false, error: 'Room limit reached.' };
+        if (s.departments[act.service].roomSlots >= 24) return { ok: false, error: 'Room limit reached.' };
         this.book('cost.capital', cost, `room:${act.service}`); s.departments[act.service].roomSlots += 1;
         log(`built ${act.service} room`); return { ok: true };
       }
@@ -202,13 +210,18 @@ export class Simulation {
     while (sev < sevW.length - 1 && u >= sevW[sev]) { u -= sevW[sev]; sev++; }
     const hours = svc === 'emergency' ? this.a.treatment.emergencyHoursBySeverity : this.a.treatment.outpatientHoursBySeverity;
     const dist: EventDist = this.asset.payments[svc].byPayer[cell.payer] ?? this.asset.payments[svc].pooled;
+    let treatTicks = hours?.[sev] ?? 1;
+    if (svc === 'inpatient') { // length of stay from the weighted MEPS nights distribution (capped; heavy tail)
+      const nights = Math.min(this.a.treatment.inpatientMaxNights, Math.max(1, Math.round(this.sampleDist(r, (dist.nights ?? this.asset.payments.inpatient.pooled.nights)!))));
+      treatTicks = nights * 24; sev = nights <= 2 ? 0 : nights <= 4 ? 1 : nights <= 7 ? 2 : nights <= 14 ? 3 : 4;
+    }
     const price = idx(this.a.scenario.medicalPriceInflationPerYear, yrs(s));
     const pay = Math.round(this.sampleDist(r, dist.facilityPaymentCents) * price);
     const oop = Math.min(pay, Math.round(pay * (this.oopShare[`${svc}:${cell.payer}`] ?? 0)));
     const id = `V${s.nextVisitId++}`;
     const patient: SyntheticPatient = { id: `P${id}`, age, payer: cell.payer, incomeBand: cell.incomeBand, riskBand: `severity-${sev + 1}`,
       cohortId: `${cell.ageBand}|${cell.payer}|${cell.incomeBand}`, isDemo: this.asset.provenanceKind === 'DEMO_SYNTHETIC' };
-    return { id, patientId: patient.id, service: svc, arrivalTick: s.tick, treatmentTicks: hours[sev], severityBand: sev + 1,
+    return { id, patientId: patient.id, service: svc, arrivalTick: s.tick, treatmentTicks: treatTicks, severityBand: sev + 1,
       expectedFacilityPaymentCents: pay, expectedOutOfPocketCents: oop, source: this.asset.provenanceKind, patient };
   }
 
@@ -238,22 +251,23 @@ export class Simulation {
         }
       }
       // 3. service starts (FIFO)
-      const mult = a.costs.processImprovementServiceTimeMultiplier[s.processLevel] ?? 1;
+      const pmult = a.costs.processImprovementServiceTimeMultiplier[s.processLevel] ?? 1;
       for (const svc of PLAYABLE) {
         const d = s.departments[svc]; let free = this.servers(d, hour) - d.inService.length;
         while (free > 0 && d.queue.length > 0) {
-          const v = d.queue.shift()!; const dur = Math.max(1, Math.round(v.treatmentTicks * mult));
+          const v = d.queue.shift()!; const dur = svc === 'inpatient' ? v.treatmentTicks : Math.max(1, Math.round(v.treatmentTicks * pmult));
           d.inService.push({ visit: v, startTick: s.tick, endTick: s.tick + dur }); free--;
           const wait = s.tick - v.arrivalTick; s.yearAcc.waitSum[svc] += wait; grp(s.yearAcc, v).forEach((g) => (g.waitTicksSum += wait));
           emit?.({ type: 'start', tick: s.tick, visit: v, waitTicks: wait });
         }
         // 4. unmet demand: transfer / left without being seen after waiting too long
-        const lim = svc === 'emergency' ? a.queue.emergencyDiversionWaitTicks : a.queue.outpatientLeaveWaitTicks;
+        const lim = svc === 'emergency' ? a.queue.emergencyDiversionWaitTicks : svc === 'inpatient' ? a.queue.inpatientDiversionWaitTicks : a.queue.outpatientLeaveWaitTicks;
         const keep: Visit[] = [];
         for (const v of d.queue) {
           if (s.tick - v.arrivalTick >= lim) {
             s.yearAcc.unmet[svc]++; grp(s.yearAcc, v).forEach((g) => g.unmet++);
-            emit?.({ type: 'leave', tick: s.tick, visit: v, reason: svc === 'emergency' ? 'diverted' : 'left_unseen' });
+            if (svc !== 'outpatient') this.book('cost.penalty', Math.round(a.queue.divertedPenaltyCents[svc] * idx(a.scenario.generalInflationPerYear, yrs(s))), v.id);
+            emit?.({ type: 'leave', tick: s.tick, visit: v, reason: svc === 'outpatient' ? 'left_unseen' : 'diverted' });
           } else keep.push(v);
         }
         d.queue = keep;
@@ -306,26 +320,27 @@ export class Simulation {
 
   private closeYear() {
     const s = this.state, acc = s.yearAcc;
-    const rev = s.ledger['revenue.emergency'] + s.ledger['revenue.outpatient'];
+    const rev = s.ledger['revenue.emergency'] + s.ledger['revenue.outpatient'] + s.ledger['revenue.inpatient'];
     const exp = LEDGER_CATEGORIES.filter((k) => k.startsWith('cost.')).reduce((t, k) => t + s.ledger[k], 0);
-    const treatedAll = acc.treated.emergency + acc.treated.outpatient;
-    const waitAll = acc.waitSum.emergency + acc.waitSum.outpatient;
+    const treatedAll = acc.treated.emergency + acc.treated.outpatient + acc.treated.inpatient;
+    const waitAll = acc.waitSum.emergency + acc.waitSum.outpatient + acc.waitSum.inpatient;
     const dep = s.departments;
     const snap: AnnualSnapshot = {
       year: s.year, seed: s.config.seed, modelVersion: this.asset.modelVersion, mode: this.asset.provenanceKind,
       populationSize: this.population(),
-      arrivals: { emergency: acc.arrivals.emergency, outpatient: acc.arrivals.outpatient, inpatient: 0 },
-      treated: { emergency: acc.treated.emergency, outpatient: acc.treated.outpatient, inpatient: 0 },
-      unmet: { emergency: acc.unmet.emergency, outpatient: acc.unmet.outpatient, inpatient: 0 },
+      arrivals: { ...acc.arrivals },
+      treated: { ...acc.treated },
+      unmet: { ...acc.unmet },
       avgWaitTicks: treatedAll ? waitAll / treatedAll : 0,
       avgWaitTicksByService: { emergency: acc.treated.emergency ? acc.waitSum.emergency / acc.treated.emergency : 0,
-        outpatient: acc.treated.outpatient ? acc.waitSum.outpatient / acc.treated.outpatient : 0 },
+        outpatient: acc.treated.outpatient ? acc.waitSum.outpatient / acc.treated.outpatient : 0,
+        inpatient: acc.treated.inpatient ? acc.waitSum.inpatient / acc.treated.inpatient : 0 },
       revenueCents: rev, expensesCents: exp, netCents: rev - exp,
       cashStartCents: s.cashStartOfYearCents, cashCents: s.cashCents, ledger: { ...s.ledger },
-      staffCount: dep.emergency.nurses + dep.emergency.physicians + dep.outpatient.nurses + dep.outpatient.physicians,
-      roomCount: dep.emergency.roomSlots + dep.outpatient.roomSlots,
-      physicians: dep.emergency.physicians + dep.outpatient.physicians, nurses: dep.emergency.nurses + dep.outpatient.nurses,
-      unmetDemand: acc.unmet.emergency + acc.unmet.outpatient,
+      staffCount: PLAYABLE.reduce((t, k) => t + dep[k].nurses + dep[k].physicians, 0),
+      roomCount: PLAYABLE.reduce((t, k) => t + dep[k].roomSlots, 0),
+      physicians: PLAYABLE.reduce((t, k) => t + dep[k].physicians, 0), nurses: PLAYABLE.reduce((t, k) => t + dep[k].nurses, 0),
+      unmetDemand: acc.unmet.emergency + acc.unmet.outpatient + acc.unmet.inpatient,
       byPayer: acc.byPayer, byIncome: acc.byIncome, patientOopCents: acc.oop, subsidizedOopCents: acc.subsidized,
       avgOopPerVisitCents: treatedAll ? Math.round(acc.oop / treatedAll) : 0,
       decisions: [...s.decisionsThisYear],
@@ -347,7 +362,7 @@ export class Simulation {
   /** Invariant check: cash_end == cash_start + revenue - costs for the in-progress year. */
   checkInvariants(): string[] {
     const s = this.state, errs: string[] = [];
-    const rev = s.ledger['revenue.emergency'] + s.ledger['revenue.outpatient'];
+    const rev = s.ledger['revenue.emergency'] + s.ledger['revenue.outpatient'] + s.ledger['revenue.inpatient'];
     const cost = LEDGER_CATEGORIES.filter((k) => k.startsWith('cost.')).reduce((t, k) => t + s.ledger[k], 0);
     if (s.cashCents !== s.cashStartOfYearCents + rev - cost) errs.push('cash != start + revenue - costs');
     for (const svc of PLAYABLE) {
@@ -366,7 +381,31 @@ function grp(acc: YearAcc, v: Visit): GroupStats[] {
 export function serialize(s: SimState): string { return JSON.stringify(s); }
 export function deserialize(json: string): SimState {
   const s = JSON.parse(json) as SimState;
-  if (s?.version !== 1 || !s.departments || !s.rng) throw new Error('Corrupt or incompatible save.');
+  if (s?.version !== 1 || !s.departments?.emergency || !s.departments.inpatient || !s.rng) throw new Error('Corrupt or incompatible save.');
+  s.actionLog ??= [];
   return s;
 }
 export type { PayerGroup };
+
+/** Re-run the same decisions (same ticks) under another seed, for the given number of years. Empty log = no-intervention control. */
+export function replay(asset: ModelAsset, seed: number, log: { tick: number; action: Action }[], years: number, assumptions: Assumptions = DEFAULT_ASSUMPTIONS, scenarioId = 'replay'): Simulation {
+  const s = Simulation.create(asset, seed, assumptions, scenarioId); let i = 0;
+  while (!s.state.finished && !s.state.bankrupt && s.state.snapshots.length < years) {
+    if (i < log.length && s.state.tick >= log[i].tick) { s.applyAction(log[i].action); i++; continue; }
+    const room = i < log.length ? log[i].tick - s.state.tick : assumptions.hoursPerYear;
+    s.advance(Math.max(1, Math.min(room, assumptions.hoursPerYear)), { stopAtYearEnd: true });
+  }
+  return s;
+}
+export interface Band { p10: number; median: number; p90: number; }
+export interface BandSummary { runs: number; finalCash: Band; cumulativeNet: Band; treated: Band; unmet: Band; avgWaitTicks: Band; bankruptShare: number; }
+export function quantile(xs: number[], q: number): number { const a = [...xs].sort((x, y) => x - y); if (!a.length) return 0; const p = (a.length - 1) * q, lo = Math.floor(p), hi = Math.ceil(p); return a[lo] + (a[hi] - a[lo]) * (p - lo); }
+export function summarize(runs: Simulation[]): BandSummary {
+  const band = (f: (s: Simulation) => number): Band => { const v = runs.map(f); return { p10: quantile(v, 0.1), median: quantile(v, 0.5), p90: quantile(v, 0.9) }; };
+  const sn = (s: Simulation) => s.state.snapshots;
+  const tr = (s: Simulation) => sn(s).reduce((t, x) => t + x.treated.emergency + x.treated.outpatient + x.treated.inpatient, 0);
+  return { runs: runs.length, finalCash: band((s) => s.state.cashCents), cumulativeNet: band((s) => sn(s).reduce((t, x) => t + x.netCents, 0)), treated: band(tr),
+    unmet: band((s) => sn(s).reduce((t, x) => t + x.unmetDemand, 0)),
+    avgWaitTicks: band((s) => sn(s).reduce((t, x) => t + x.avgWaitTicks * (x.treated.emergency + x.treated.outpatient + x.treated.inpatient), 0) / Math.max(1, tr(s))),
+    bankruptShare: runs.filter((s) => s.state.bankrupt).length / Math.max(1, runs.length) };
+}

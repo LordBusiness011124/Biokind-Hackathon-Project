@@ -4,7 +4,8 @@
   "56 demographic cells; 23 sparse (n<50) used fallback rates",
   "emergency: 4351 events raw -> 4261 after weight>0 + person join (no duplication)",
   "outpatient: 22150 events raw -> 21956 after weight>0 + person join (no duplication)",
-  "inpatient: 1912 events raw -> 1881 after weight>0 + person join (no duplication)"
+  "inpatient: 1912 events raw -> 1881 after weight>0 + person join (no duplication)",
+  "design-based SEs computed (strata/PSU)"
  ],
  "calibrationYear": 2024,
  "cells": [
@@ -908,6 +909,67 @@
    "outpatient": "OPTOTV24"
   },
   "weight": "PERWT24F"
+ },
+ "designBased": {
+  "ageShare": {
+   "0-17": {
+    "est": 0.21375232727204702,
+    "se": 0.004564988410997031
+   },
+   "18-44": {
+    "est": 0.35856444921613223,
+    "se": 0.004774288421660699
+   },
+   "45-64": {
+    "est": 0.24028694326147204,
+    "se": 0.004046083675914236
+   },
+   "65+": {
+    "est": 0.18739628025034888,
+    "se": 0.004629582483911431
+   }
+  },
+  "method": "Taylor linearisation, strata=VARSTR, PSU=VARPSU, with-replacement variance; single-PSU strata skipped",
+  "payerShare": {
+   "medicaid": {
+    "est": 0.19430611166135597,
+    "se": 0.007735680962359289
+   },
+   "medicare": {
+    "est": 0.20631459552094256,
+    "se": 0.004956338345366089
+   },
+   "other": {
+    "est": 0.016294745878273294,
+    "se": 0.0018389669258092067
+   },
+   "private": {
+    "est": 0.5183512511330507,
+    "se": 0.00980738968496184
+   },
+   "uninsured": {
+    "est": 0.06473329580637766,
+    "se": 0.004070464339751032
+   }
+  },
+  "ratesPerPersonYear": {
+   "emergency": {
+    "est": 0.20074406391633817,
+    "se": 0.0056783405864234545
+   },
+   "inpatient": {
+    "est": 0.08356144509033264,
+    "se": 0.0028739330395333067
+   },
+   "outpatient": {
+    "est": 1.000479671366233,
+    "se": 0.04575992266657397
+   }
+  },
+  "uninsuredErRatePerPersonYear": {
+   "est": 0.08777949815786293,
+   "se": 0.011017446991358813
+  }
  },
  "inputs": {
   "HC-254D": {

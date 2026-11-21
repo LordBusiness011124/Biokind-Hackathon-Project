@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { END_YEAR, Simulation, makeDemoAsset, serialize, validateAsset, type Action } from '../src';
+import { END_YEAR, Simulation, replay, summarize, makeDemoAsset, serialize, validateAsset, type Action } from '../src';
 import { loadAsset } from './helpers';
 
 const asset = loadAsset();
@@ -59,6 +59,7 @@ describe('invariants', () => {
   });
   it('more staff does not reduce throughput (same seed)', () => {
     const base = Simulation.create(asset, 11), more = Simulation.create(asset, 11);
+    base.state.cashCents = more.state.cashCents = 10 ** 10;
     more.applyAction({ type: 'hire', service: 'emergency', role: 'physician', count: 5 });
     more.applyAction({ type: 'hire', service: 'emergency', role: 'nurse', count: 9 });
     base.runToYearEnd(); more.runToYearEnd();
@@ -68,7 +69,7 @@ describe('invariants', () => {
 
 describe('stress', () => {
   it('no staff: nothing treated, all arrivals become unmet, no NaN', () => {
-    const s = Simulation.create(asset, 9);
+    const s = Simulation.create(asset, 9); s.state.cashCents = 10 ** 12;
     for (const sv of ['emergency', 'outpatient'] as const) { s.state.departments[sv].nurses = 0; s.state.departments[sv].physicians = 0; }
     s.runToYearEnd(); const y = s.state.snapshots[0];
     expect(y.treated.emergency + y.treated.outpatient).toBe(0);
@@ -92,7 +93,7 @@ describe('stress', () => {
 
 describe('20-year run', () => {
   it('completes 2024..2044 with 21 snapshots, no NaN, invariants hold', () => {
-    const s = Simulation.create(asset, 2044); s.runToEnd();
+    const s = Simulation.create(asset, 2044, { ...Simulation.create(asset, 1).a, startingCashCents: 10 ** 11 }); s.runToEnd();
     expect(s.state.finished).toBe(true);
     expect(s.state.snapshots.length).toBe(21);
     expect(s.state.snapshots[0].year).toBe(2024); expect(s.state.snapshots[20].year).toBe(END_YEAR);
@@ -113,5 +114,40 @@ describe('payment calibration', () => {
     const simulated = y.ledger['revenue.emergency'] / y.treated.emergency;
     expect(simulated / expected).toBeGreaterThan(0.75);
     expect(simulated / expected).toBeLessThan(1.25);
+  });
+});
+
+describe('inpatient ward', () => {
+  it('is locked at start (0 beds) and treats nothing until built and staffed', () => {
+    const s = Simulation.create(asset, 4); s.runToYearEnd();
+    expect(s.state.snapshots[0].treated.inpatient).toBe(0);
+    expect(s.state.snapshots[0].arrivals.inpatient).toBeGreaterThan(0);
+  });
+  it('built + staffed ward treats admissions and books inpatient revenue', () => {
+    const s = Simulation.create(asset, 4); s.state.cashCents = 10 ** 10;
+    for (let i = 0; i < 8; i++) expect(s.applyAction({ type: 'addRoom', service: 'inpatient' }).ok).toBe(true);
+    s.applyAction({ type: 'hire', service: 'inpatient', role: 'physician', count: 6 });
+    s.applyAction({ type: 'hire', service: 'inpatient', role: 'nurse', count: 12 });
+    s.runToYearEnd(); const y = s.state.snapshots[0];
+    expect(y.treated.inpatient).toBeGreaterThan(50);
+    expect(y.ledger['revenue.inpatient']).toBeGreaterThan(0);
+    expect(s.checkInvariants()).toEqual([]);
+  });
+});
+
+describe('replay & bands', () => {
+  it('replaying the action log with the same seed reproduces the run exactly', () => {
+    const rich = { ...Simulation.create(asset, 1).a, startingCashCents: 10 ** 10 };
+    const a = Simulation.create(asset, 21, rich);
+    a.applyAction({ type: 'hire', service: 'emergency', role: 'physician', count: 3 }); a.advance(2500);
+    a.applyAction({ type: 'addRoom', service: 'emergency' }); a.advance(8760 * 2); a.runToYearEnd();
+    const n = a.state.snapshots.length;
+    const b = replay(asset, 21, a.state.actionLog, n, rich);
+    expect(b.state.snapshots.length).toBe(n);
+    expect(JSON.stringify(b.state.snapshots)).toBe(JSON.stringify(a.state.snapshots));
+  });
+  it('summary bands are ordered', () => {
+    const runs = [1, 2, 3, 4, 5].map((sd) => replay(asset, sd, [], 2)); const b = summarize(runs);
+    expect(b.finalCash.p10).toBeLessThanOrEqual(b.finalCash.median); expect(b.finalCash.median).toBeLessThanOrEqual(b.finalCash.p90);
   });
 });

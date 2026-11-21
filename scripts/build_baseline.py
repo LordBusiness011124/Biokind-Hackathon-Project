@@ -101,6 +101,13 @@ def main():
     age_share = {a_: float(p.loc[p.age_band == a_, "PERWT24F"].sum() / W) for a_, _, _ in AGE_BANDS}
     overall_rates = {s: wmean(p[c].values, p.PERWT24F.values) for s, c in
                      (("emergency", "ERTOT24"), ("outpatient", "OPTOTV24"), ("inpatient", "IPDIS24"))}
+    design = {"method": "Taylor linearisation, strata=VARSTR, PSU=VARPSU, with-replacement variance; single-PSU strata skipped",
+              "payerShare": {py: dict(zip(("est", "se"), ratio_se(p, (p.payer == py).values.astype(float)))) for py in PAYERS},
+              "ageShare": {a_: dict(zip(("est", "se"), ratio_se(p, (p.age_band == a_).values.astype(float)))) for a_, _, _ in AGE_BANDS},
+              "ratesPerPersonYear": {s_: dict(zip(("est", "se"), ratio_se(p, p[c].values.astype(float)))) for s_, c in
+                                     (("emergency", "ERTOT24"), ("outpatient", "OPTOTV24"), ("inpatient", "IPDIS24"))},
+              "uninsuredErRatePerPersonYear": dict(zip(("est", "se"), ratio_se(p[p.payer == "uninsured"], p.loc[p.payer == "uninsured", "ERTOT24"].values.astype(float))))}
+    log.append("design-based SEs computed (strata/PSU)")
     src = json.loads((ROOT / "data" / "source_manifest.json").read_text())
     asset = {
         "modelVersion": MODEL_VERSION, "provenanceKind": "MEPS_CALIBRATED", "calibrationYear": 2024,
@@ -114,7 +121,7 @@ def main():
             "paymentVariables": EVENT_PAY, "weight": "PERWT24F", "personKey": "DUPERSID (not exported)",
             "minCellN": MIN_CELL_N, "minPaymentN": MIN_PAY_N, "lowPaymentN": LOW_PAY_N,
             "caveat": "MEPS payments are expenditures by payment source, not hospital revenue, cost or profit."},
-        "marginals": {"payerShare": payer_share, "ageShare": age_share, "overallRatesPerPersonYear": overall_rates},
+        "designBased": design, "marginals": {"payerShare": payer_share, "ageShare": age_share, "overallRatesPerPersonYear": overall_rates},
         "cells": cells, "payments": payments, "reconciliation": recon, "buildLog": log,
     }
     out = Path(a.output); out.mkdir(parents=True, exist_ok=True)

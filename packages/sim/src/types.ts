@@ -1,8 +1,8 @@
 export type ProvenanceKind = 'MEPS_OBSERVED' | 'MEPS_CALIBRATED' | 'MODEL_ASSUMPTION' | 'SIMULATED' | 'DEMO_SYNTHETIC';
 export type ServiceType = 'emergency' | 'outpatient' | 'inpatient';
-export type PlayableService = 'emergency' | 'outpatient';
+export type PlayableService = 'emergency' | 'outpatient' | 'inpatient';
 export type PayerGroup = 'private' | 'medicare' | 'medicaid' | 'uninsured' | 'other' | 'unknown';
-export const PLAYABLE: PlayableService[] = ['emergency', 'outpatient'];
+export const PLAYABLE: PlayableService[] = ['emergency', 'outpatient', 'inpatient'];
 export const PAYERS: PayerGroup[] = ['private', 'medicare', 'medicaid', 'uninsured', 'other'];
 
 export interface ModelProvenance {
@@ -26,11 +26,11 @@ export interface Department {
 }
 
 export type LedgerCategory =
-  | 'revenue.emergency' | 'revenue.outpatient'
-  | 'cost.payroll' | 'cost.upkeep' | 'cost.variable' | 'cost.overhead' | 'cost.capital' | 'cost.subsidy' | 'cost.process';
+  | 'revenue.emergency' | 'revenue.outpatient' | 'revenue.inpatient'
+  | 'cost.payroll' | 'cost.upkeep' | 'cost.variable' | 'cost.overhead' | 'cost.capital' | 'cost.subsidy' | 'cost.process' | 'cost.penalty';
 export const LEDGER_CATEGORIES: LedgerCategory[] = [
-  'revenue.emergency', 'revenue.outpatient', 'cost.payroll', 'cost.upkeep', 'cost.variable',
-  'cost.overhead', 'cost.capital', 'cost.subsidy', 'cost.process'];
+  'revenue.emergency', 'revenue.outpatient', 'revenue.inpatient', 'cost.payroll', 'cost.upkeep', 'cost.variable',
+  'cost.overhead', 'cost.capital', 'cost.subsidy', 'cost.process', 'cost.penalty'];
 export type LedgerTotals = Record<LedgerCategory, number>;
 export interface LedgerEntry { tick: number; category: LedgerCategory; cents: number; ref: string; }
 
