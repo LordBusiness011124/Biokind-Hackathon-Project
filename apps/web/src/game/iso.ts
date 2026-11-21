@@ -46,14 +46,7 @@ export const queueSpots = (svc: Dept) => {
   xs.sort((a, b) => Math.abs(a - door.x) - Math.abs(b - door.x) || a - b);
   return xs.map((x) => ({ x, y: row }));
 };
-export const INTERACT = [
-  { x: 16, y: 21, tab: 'manage', label: 'Admin desk: manage hospital' },
-  { x: 6, y: 21, tab: 'data', label: 'Reception board: why these patients?' },
-  { x: 13, y: 10, tab: 'manage', label: 'ER console: staffing & rooms' },
-  { x: 23, y: 10, tab: 'manage', label: 'Ward console: beds & staffing' },
-  { x: 25, y: 18, tab: 'manage', label: 'Clinic console: staffing & rooms' },
-  { x: 30, y: 14, tab: 'why', label: 'Info kiosk: why MEPS matters' },
-];
+export { OBJECTS } from './objects';
 
 export type Prop = { x: number; y: number; tex: string; dy?: number; blocked?: boolean };
 

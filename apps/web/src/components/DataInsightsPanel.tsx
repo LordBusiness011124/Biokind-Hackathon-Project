@@ -2,7 +2,7 @@ import type { Controller } from '../controller';
 import { PAYERS, PLAYABLE } from '@hospital/sim';
 import { usd, pct, num } from '../format';
 import { Badge } from './Badge';
-import { MepsExplorer, MethodsPrimer, SpendingLesson } from './MepsExplorer';
+import { BurdenLesson, MepsExplorer, MethodsPrimer, SpendingLesson } from './MepsExplorer';
 
 function Bars({ data }: { data: Record<string, number> }) {
   return <div className="bars">{Object.entries(data).map(([k, v]) => (<div className="bar" key={k}><span>{k}</span><i style={{ width: `${Math.min(100, v * 100)}%` }} className={`pc-${k}`} /><b>{pct(v, 1)}</b></div>))}</div>;
@@ -15,6 +15,7 @@ export function DataInsightsPanel({ ctl }: { ctl: Controller }) {
       {ctl.isDemo && <div className="banner demo">DEMO MODE: SYNTHETIC PLACEHOLDER DATA. MEPS CALIBRATION NOT YET LOADED.{ctl.assetError ? ` (${ctl.assetError})` : ''}</div>}
       <MethodsPrimer />
       <MepsExplorer ctl={ctl} />
+      <BurdenLesson ctl={ctl} />
       <SpendingLesson ctl={ctl} />
       <section className="card">
         <h3>Why these patients?</h3>

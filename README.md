@@ -11,6 +11,11 @@ An isometric pixel-art hospital management game where **the MEPS 2024 data is th
 - **Reports:** year-end and final reports compare your patient mix to the MEPS population, show equity and affordability, a no-intervention comparison, and 20-seed variability bands.
 - Every number is labelled MEPS_OBSERVED / MEPS_CALIBRATED / MODEL_ASSUMPTION / SIMULATED / DEMO_SYNTHETIC. Without the data asset the app runs in a clearly bannered DEMO mode.
 
+## The datathon question
+Built for the Biokind x UBSA 2026 Public Health Datathon, Track 2 (Healthcare Access): examine inequities in the economic burden of health care using MEPS HC-256. The headline finding: 18.3% (±3.2) of people in poor families spend over 10% of family income out of pocket versus 3.0% (±0.6) in high-income families, while spending fewer dollars. See [docs/CHALLENGE_ALIGNMENT.md](docs/CHALLENGE_ALIGNMENT.md) for the problem questions, techniques and where the product answers each, and `docs/presentation/` for the slides.
+
+![Hospital Tycoon: 2044](docs/presentation/game-screenshot.png)
+
 ## Choices matter
 Money is not automatic. Every year a **board meeting** puts one dilemma in front of you (a Medicaid rate cut, a nurse contract, new equipment, a free clinic, an insurer contract…) with real prices, lasting effects and sometimes risk, and doing nothing just selects the default. **Community trust** (0–100) updates monthly from how well you serve people and scales how many patients choose you, and an **access policy** lets you trade revenue against equity (the ER can never refuse anyone). Auto-play skips every decision to show what indecision costs.
 
@@ -21,10 +26,10 @@ Run a community hospital from 2024 to 2044 and **keep it open and fair**: stay s
 ```
 npm install
 npm run dev        # http://localhost:5173
-npm test           # 43 sim/data/teaching tests (vitest)
+npm test           # 46 sim/data/teaching tests (vitest)
 npm run build      # typecheck + production build
 ```
-Controls: WASD/arrows move, E interacts (desk, consoles, reception board, kiosk), Space pauses, M mutes, wheel zooms.
+Controls: click an object on the map (or press 1–6) and the administrator walks there and opens its panel. Space pauses, M mutes, the wheel zooms.
 
 ## Rebuild the data asset from raw MEPS (the derived asset is committed)
 ```

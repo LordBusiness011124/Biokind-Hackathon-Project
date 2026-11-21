@@ -365,3 +365,22 @@ describe('decisions, policies and trust', () => {
     expect(thoughtful).toBeGreaterThan(nothing); expect(thoughtful).toBeGreaterThan(greedy);
   });
 });
+
+describe('economic-burden analysis (challenge question)', () => {
+  const b = asset.insights!.burden!;
+  it('shows the regressive pattern with design-based intervals: poor families over the 10% line far more often yet spending fewer dollars', () => {
+    const poor = b.byPoverty['Poor (<100% FPL)'], rich = b.byPoverty['High income (400%+)'];
+    expect(poor.highBurden10.est).toBeGreaterThan(3 * rich.highBurden10.est);
+    expect(poor.meanFamilyOopUSD.est).toBeLessThan(rich.meanFamilyOopUSD.est);
+    for (const r of Object.values(b.byPoverty)) { expect(r.highBurden10.se).toBeGreaterThan(0); expect(r.highBurden10.est).toBeGreaterThanOrEqual(r.highBurden20.est); expect(r.n).toBeGreaterThan(100); }
+    expect(b.overall.highBurden10.est).toBeGreaterThan(0.03); expect(b.overall.highBurden10.est).toBeLessThan(0.15);
+  });
+  it('the quiz can ask about it and gets the answer right', () => {
+    const qs = Array.from({ length: 40 }, (_, i) => buildQuestions(asset, 2024 + (i % 21), 2)).flat();
+    const q = qs.find((x) => x.id === 'burden-poverty'); expect(q).toBeDefined();
+    expect(q!.options[q!.answerIndex]).toBe('Poor (<100% FPL)'); expect(q!.explain).toContain('95% CI');
+  });
+  it('the charity-care decision cites the burden gap from MEPS', () => {
+    expect(getCard('charity-policy')!.fact!(asset, {})).toContain('spend over 10% of income');
+  });
+});

@@ -2,6 +2,7 @@ import type { ModelProvenance, PayerGroup, ProvenanceKind, ServiceType } from '.
 
 export interface Est { est: number; se: number }
 export interface GroupInsight { n: number; weightedShare: number; sparse: boolean; emergency: Est; outpatient: Est; inpatient: Est; totalExpenditureUSD: Est; anyErVisit: Est }
+export interface BurdenRow { n: number; highBurden10: Est; highBurden20: Est; anyOop: Est; meanFamilyOopUSD: Est; meanOopShareOfIncome: Est }
 export interface PaymentDist { mean: number; tailMean?: number; zeroShare?: number; quantileGrid: number[]; quantiles: number[]; }
 export interface EventDist {
   nEvents: number; weightedEvents: number; source?: string; nights?: PaymentDist;
@@ -20,6 +21,7 @@ export interface ModelAsset {
   designBased?: { method: string; payerShare: Record<string, { est: number; se: number }>; ageShare: Record<string, { est: number; se: number }>; ratesPerPersonYear: Record<string, { est: number; se: number }> };
   insights?: {
     ratesAndSpendingByGroup: Record<'ageBand' | 'payer' | 'incomeBand', Record<string, GroupInsight>>;
+    burden?: { definition: string; caveat: string; overall: BurdenRow; byPoverty: Record<string, BurdenRow>; byPayer: Record<string, BurdenRow>; byAge: Record<string, BurdenRow> };
     spendingConcentration: Record<string, number>; zeroExpenditureShare: number; meanTotalExpenditureUSD: number; medianTotalExpenditureUSD: number; note: string;
   };
   cells: AssetCell[];

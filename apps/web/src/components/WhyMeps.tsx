@@ -13,6 +13,7 @@ export function WhyMeps({ ctl }: { ctl: Controller }) {
   const revPerVisit = (mix: Record<string, number>) => { const t = PAYERS.reduce((s, p) => s + (mix[p] ?? 0), 0) || 1; return PAYERS.reduce((s, p) => s + ((mix[p] ?? 0) / t) * er.byPayer[p].facilityPaymentCents.mean, 0); };
   const expArr = sim.expectedAnnualArrivals().emergency;
   const meps = revPerVisit(use) * expArr, ignoreUse = revPerVisit(pop) * expArr, ignoreSkew = pooledMedian * expArr, flatAvg = pooledMean * expArr;
+  const bp = ins.burden?.byPoverty, burden = bp ? { poor: bp['Poor (<100% FPL)'], rich: bp['High income (400%+)'] } : null;
   const g = ins.ratesAndSpendingByGroup, ageR = g.ageBand['65+'].emergency.est / g.ageBand['0-17'].emergency.est;
   const c = ins.spendingConcentration, ipMean = a.payments.inpatient.pooled.facilityPaymentCents.mean, erMean = pooledMean;
   const diff = (x: number) => { const d = (x - meps) / meps; return `${d >= 0 ? '+' : ''}${(d * 100).toFixed(0)}%`; };
@@ -23,6 +24,19 @@ export function WhyMeps({ ctl }: { ctl: Controller }) {
         <h3>The short version</h3>
         <p>A hospital game needs to answer three questions: <b>who shows up, how often, and who pays what</b>. Without real data those answers are guesses, and a game built on guesses teaches nothing. <b>MEPS answers all three</b>, from the same people, in the same year, which is why the whole game is built on it.</p>
         <p className="note">Everything on this page is computed live from the MEPS asset you are playing with.</p>
+      </section>
+
+      <section className="card">
+        <h3>The challenge this answers</h3>
+        <p className="note">Datathon track: <b>Healthcare Access</b>. Use MEPS 2024 (HC-256) to examine <b>nationwide inequities in the economic burden of health care</b>.</p>
+        <table className="tbl"><thead><tr><th>Problem question</th><th>Finding</th><th>Where in the game</th></tr></thead><tbody>
+          <tr><td>1. Who carries the burden?</td><td>{burden ? `${pct(burden.poor.highBurden10.est, 1)} of people in poor families spend over 10% of income out of pocket, versus ${pct(burden.rich.highBurden10.est, 1)} in high-income families` : '(needs the MEPS asset)'}</td><td>MEPS Lab · affordability score · assistance fund</td></tr>
+          <tr><td>2. Is use of care equal?</td><td>{`Medicare is ${pct(pop.medicare)} of people but ${pct(use.medicare ?? 0)} of your ER arrivals; the uninsured use the ER less than the insured`}</td><td>MEPS Lab explorer · patient mix</td></tr>
+          <tr><td>3. How skewed is spending?</td><td>{`The top 10% of people hold ${pct(c.top10)} of spending; median ${usd(ins.medianTotalExpenditureUSD * 100)} vs mean ${usd(ins.meanTotalExpenditureUSD * 100)}`}</td><td>Spending lesson · ward economics</td></tr>
+          <tr><td>4. What does insurance do to providers?</td><td>{`An ER visit pays ${usd(er.byPayer.private.facilityPaymentCents.mean)} private vs ${usd(er.byPayer.medicaid.facilityPaymentCents.mean)} Medicaid`}</td><td>Board decisions · access policy · equity score</td></tr>
+          <tr><td>5. What should be done?</td><td>Fairness has a price: you can see it, and choose</td><td>Your decisions, trust and final grade</td></tr>
+        </tbody></table>
+        <p className="note"><b>Audience:</b> public-health students and hospital or community-health planners. <b>Action:</b> play one run, compare your choices with the no-intervention branch, and use the equity and affordability results to discuss who should get help first.</p>
       </section>
 
       <section className="card">

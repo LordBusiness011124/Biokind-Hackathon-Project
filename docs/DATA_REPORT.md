@@ -42,6 +42,15 @@ Model version `meps2024-v1` · provenance `MEPS_CALIBRATED` · 18683 persons wit
 - top50: 97.2% of total expenditure
 - persons with zero expenditure: 14.5%; mean $8,347, median $1,700
 
+## Economic burden (family out-of-pocket / family income)
+
+- High income (400%+): 3.0% ±0.6% spend >10% of income; mean family OOP $3,724 (n=7647)
+- Low income (125-199%): 10.7% ±2.5% spend >10% of income; mean family OOP $1,645 (n=2293)
+- Middle income (200-399%): 7.4% ±1.5% spend >10% of income; mean family OOP $2,605 (n=5004)
+- Near poor (100-124%): 9.9% ±3.5% spend >10% of income; mean family OOP $1,238 (n=799)
+- Poor (<100% FPL): 18.3% ±3.2% spend >10% of income; mean family OOP $900 (n=2342)
+- overall: 6.8% of people live in families spending >10% of income out of pocket
+
 ## Event vs person file reconciliation
 
 - emergency: ratio 1.000; facility payments $77.0B; physician payments $18.8B; person-file service expenditure $95.8B
@@ -57,6 +66,7 @@ Model version `meps2024-v1` · provenance `MEPS_CALIBRATED` · 18683 persons wit
 - inpatient: 1912 events raw -> 1881 after weight>0 + person join (no duplication)
 - design-based SEs computed (strata/PSU)
 - insights computed (rates/expenditure by age, payer, income with design-based SEs; spending concentration)
+- economic-burden analysis computed (family OOP / family income, design-based SEs)
 
 ## Result
 

@@ -2,7 +2,8 @@ import Phaser from 'phaser';
 import type { Controller } from '../controller';
 import type { Visit } from '@hospital/sim';
 import { sfx } from '../audio';
-import { DOORS, ENTRANCE, GH, GW, INTERACT, OX, ROOMS, SPAWN, WALL_H, WORLD_H, WORLD_W, bedTile, boxOrigin, buildMap, depthOf, findPath, makeTextures, proj, queueSpots, unproj, walkable, type Dept, type Tile } from './iso';
+import { OBJECTS, type WorkObject } from './objects';
+import { DOORS, ENTRANCE, GH, GW, OX, ROOMS, SPAWN, WALL_H, WORLD_H, WORLD_W, bedTile, boxOrigin, buildMap, depthOf, findPath, makeTextures, proj, queueSpots, unproj, walkable, type Dept, type Tile } from './iso';
 
 const DEPTS: Dept[] = ['emergency', 'inpatient', 'outpatient'];
 const ROOM_OF: Record<Dept, string> = { emergency: 'er', inpatient: 'ip', outpatient: 'op' };
@@ -22,17 +23,17 @@ export class HospitalScene extends Phaser.Scene {
   private tiles!: Tile[][];
   private people = new Map<string, Person>();
   private staff: Person[] = [];
-  private player!: Person; private pg = { x: 16.5, y: 20.4 };
-  private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
-  private keys!: Record<string, Phaser.Input.Keyboard.Key>;
-  private prompt!: Phaser.GameObjects.Text;
+  private player!: Person;
+  /** Object under the mouse, and the object the administrator is walking to. */
+  private hover: WorkObject | null = null; private pending: WorkObject | null = null;
+  private hoverGfx!: Phaser.GameObjects.Graphics; private hoverLabel!: Phaser.GameObjects.Text;
   private beds: Record<Dept, Phaser.GameObjects.Image[]> = { emergency: [], inpatient: [], outpatient: [] };
   private slotOf = new Map<string, number>();
   private wardSign!: Phaser.GameObjects.Text;
   private overflow: Partial<Record<Dept, Phaser.GameObjects.Text>> = {};
   private ring!: Phaser.GameObjects.Graphics;
   private reconTimer = 0; private staffSig = '';
-  private t = 0; private interactQueued = false;
+  private t = 0;
 
   constructor() { super('Hospital'); }
 
@@ -56,17 +57,24 @@ export class HospitalScene extends Phaser.Scene {
     const w = proj(25, 8); this.wardSign = this.add.text(w.x, w.y, '', { fontFamily: 'Arial, sans-serif', fontSize: '14px', color: '#fef3c7', backgroundColor: '#7c2d12dd', padding: { x: 5, y: 3 }, align: 'center' }).setResolution(2).setOrigin(0.5).setDepth(9e5);
     DEPTS.forEach((d) => { const s = queueSpots(d)[QUEUE_CAP - 1], p = proj(s.x + 0.5, s.y + 1.2); this.overflow[d] = this.add.text(p.x, p.y, '', { fontFamily: 'Arial, sans-serif', fontSize: '13px', color: '#7f1d1d', backgroundColor: '#fee2e2cc', padding: { x: 3, y: 1 } }).setResolution(2).setOrigin(0.5).setDepth(9e5); });
     this.ring = this.add.graphics().setDepth(8e5);
-    this.player = this.makePerson('admin', this.pg.x, this.pg.y);
-    this.prompt = this.add.text(0, 0, '', { fontFamily: 'Arial, sans-serif', fontSize: '15px', color: '#fff', backgroundColor: '#0f172aee', padding: { x: 5, y: 3 } }).setResolution(2).setDepth(9.5e5).setVisible(false);
+    const home = OBJECTS[0].stand; this.player = this.makePerson('admin', home.x + 0.5, home.y + 0.5); this.player.speed = 4.2;
+    this.hoverGfx = this.add.graphics().setDepth(8.5e5);
+    this.hoverLabel = this.add.text(0, 0, '', { fontFamily: 'Arial, sans-serif', fontSize: '15px', color: '#fff', backgroundColor: '#0f172af2', padding: { x: 6, y: 4 } }).setResolution(2).setOrigin(0.5, 1).setDepth(9.5e5).setVisible(false);
+    // Every object is clickable, always labelled with its shortcut key, and highlighted on hover.
+    OBJECTS.forEach((o) => {
+      const p = proj(o.x + 0.5, o.y + 0.5);
+      this.add.text(p.x, p.y - 58, `${o.key}  ${o.short}`, { fontFamily: 'Arial, sans-serif', fontSize: '13px', color: '#0f1a1c', backgroundColor: '#a0cec1f2', padding: { x: 5, y: 2 } }).setResolution(2).setOrigin(0.5).setDepth(9e5);
+      this.add.zone(p.x, p.y - 14, 84, 76).setInteractive({ useHandCursor: true }).setDepth(40)
+        .on('pointerover', () => { this.hover = o; }).on('pointerout', () => { if (this.hover === o) this.hover = null; })
+        .on('pointerdown', () => this.sendPlayer(o));
+    });
     const cam = this.cameras.main; cam.setBounds(0, 0, WORLD_W, WORLD_H); cam.setZoom(0.72); cam.startFollow(this.player.spr, true, 0.12, 0.12);
     this.input.on('wheel', (_p: unknown, _o: unknown, _dx: number, dy: number) => cam.setZoom(clamp(cam.zoom - dy * 0.001, 0.55, 1.6)));
     this.input.on('pointerdown', (_p: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[]) => {
       const hit = over.find((o) => o.getData('vid')); if (hit) this.ctl.select(this.people.get(hit.getData('vid'))?.visit ?? null); else if (!over.length) this.ctl.select(null);
     });
-    this.cursors = this.input.keyboard!.createCursorKeys();
-    this.keys = this.input.keyboard!.addKeys('W,A,S,D,E,SPACE,M') as Record<string, Phaser.Input.Keyboard.Key>;
-    // tap-style keys are event driven so very short key presses are never missed between frames
-    this.input.keyboard!.on('keydown-E', () => { this.interactQueued = true; });
+    // keys 1-6 go to the numbered objects; events (not polling) so even a quick tap is never missed
+    this.input.keyboard!.on('keydown', (e: KeyboardEvent) => { const o = OBJECTS.find((x) => x.key === e.key); if (o) this.sendPlayer(o); });
     this.input.keyboard!.on('keydown-SPACE', () => this.ctl.togglePause());
     this.input.keyboard!.on('keydown-M', () => this.ctl.toggleMute());
     this.events.once('shutdown', () => { this.people.clear(); this.staff = []; });
@@ -89,16 +97,13 @@ export class HospitalScene extends Phaser.Scene {
     if (!p.path.length && (here.x !== tx || here.y !== ty)) { p.px = tx + 0.5; p.py = ty + 0.5; }
   }
   private destroyPerson(p: Person) { p.spr.destroy(); p.shadow.destroy(); }
+  /** Walk the administrator to an object; its panel opens on arrival. */
+  private sendPlayer(o: WorkObject) { this.pending = o; this.player.tgt = ''; this.goTo(this.player, o.stand.x, o.stand.y); }
 
   // ---------- main loop ----------
   update(_t: number, dtMs: number) {
     const dt = Math.min(dtMs, 100) / 1000; this.t += dt;
-    this.movePlayer(dt);
-    // interactions
-    const near = INTERACT.find((o) => Math.hypot(this.pg.x - (o.x + 0.5), this.pg.y - (o.y + 0.5)) < 1.9);
-    if (near) { const s = proj(this.pg.x, this.pg.y); this.prompt.setText(`E: ${near.label}`).setPosition(s.x - 70, s.y - 60).setVisible(true); if (this.interactQueued) { sfx.ui(); this.ctl.openTab(near.tab); } }
-    else this.prompt.setVisible(false);
-    this.interactQueued = false;
+    const req = this.ctl.walkRequest; if (req) { this.ctl.walkRequest = null; const o = OBJECTS.find((x) => x.id === req); if (o) this.sendPlayer(o); }   // from the on-screen buttons
     // outcome events -> popups / sounds
     const ev = this.ctl.events.splice(0, this.ctl.events.length);
     ev.forEach((e) => {
@@ -122,6 +127,8 @@ export class HospitalScene extends Phaser.Scene {
       }
       this.place(p);
     };
+    step(this.player, 1 / spd);   // the administrator walks at a steady pace whatever the simulation speed
+    if (this.pending && !this.player.path.length) { const o = this.pending; this.pending = null; sfx.ui(); this.ctl.openTab(o.tab); }
     this.people.forEach((p, id) => {
       step(p);
       if (p.dying && !p.path.length) { this.destroyPerson(p); this.people.delete(id); }
@@ -133,25 +140,17 @@ export class HospitalScene extends Phaser.Scene {
         for (let tries = 0; tries < 12; tries++) { const x = Phaser.Math.Between(r.x0, r.x1), y = Phaser.Math.Between(r.y0, r.y1); if (walkable(this.tiles, x, y)) { this.goTo(s, x, y); break; } }
       }
     });
-    this.drawRing();
+    this.drawRing(); this.drawHover();
     const open = this.ctl.sim.state.departments.inpatient.roomSlots > 0;
     this.wardSign.setText(open ? '' : 'WARD CLOSED\nBuild beds & hire staff in Manage');
-    this.player.spr.setDepth(depthOf(this.pg.x, this.pg.y, 60));
   }
 
-  private movePlayer(dt: number) {
-    const L = this.cursors.left.isDown || this.keys.A.isDown, R = this.cursors.right.isDown || this.keys.D.isDown;
-    const U = this.cursors.up.isDown || this.keys.W.isDown, D = this.cursors.down.isDown || this.keys.S.isDown;
-    let vx = (R ? 1 : 0) - (L ? 1 : 0), vy = (D ? 1 : 0) - (U ? 1 : 0); const moving = vx !== 0 || vy !== 0;
-    if (moving) {
-      const n = Math.hypot(vx, vy); vx = (vx / n) * 150 * dt; vy = (vy / n) * 150 * dt;       // screen pixels this frame
-      const dgx = (vx / 32 + vy / 16) / 2, dgy = (vy / 16 - vx / 32) / 2, r = 0.22;
-      const ok = (x: number, y: number) => walkable(this.tiles, Math.floor(x - r), Math.floor(y - r)) && walkable(this.tiles, Math.floor(x + r), Math.floor(y - r)) && walkable(this.tiles, Math.floor(x - r), Math.floor(y + r)) && walkable(this.tiles, Math.floor(x + r), Math.floor(y + r));
-      if (ok(this.pg.x + dgx, this.pg.y)) this.pg.x += dgx;
-      if (ok(this.pg.x, this.pg.y + dgy)) this.pg.y += dgy;
-    }
-    this.player.px = this.pg.x; this.player.py = this.pg.y; this.player.path = moving ? [{ x: 0, y: 0 }] : [];
-    this.place(this.player); this.player.path = [];
+  /** Highlight the object under the mouse (or the one being walked to) and show what it does. */
+  private drawHover() {
+    const o = this.hover ?? this.pending; this.hoverGfx.clear(); this.hoverLabel.setVisible(!!o); if (!o) return;
+    const c = [proj(o.x, o.y), proj(o.x + 1, o.y), proj(o.x + 1, o.y + 1), proj(o.x, o.y + 1)];
+    this.hoverGfx.lineStyle(3, 0xdfbd7d, 1).strokePoints(c, true).fillStyle(0xdfbd7d, 0.18).fillPoints(c, true);
+    const t = proj(o.x + 0.5, o.y + 0.5); this.hoverLabel.setText(`${o.label}${this.pending === o ? '\nWalking there…' : '\nClick to go'}`).setPosition(t.x, t.y - 74).setAlign('center');
   }
 
   private drawRing() {

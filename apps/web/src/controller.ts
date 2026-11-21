@@ -34,6 +34,8 @@ export class Controller {
   literacy: Literacy = { asked: 0, correct: 0, grantsCents: 0 };
   /** What the player just decided (shown once, then cleared). */
   decisionResult: { title: string; optionLabel: string; text: string; failed: boolean; trustDelta: number; cashCents: number } | null = null;
+  /** Set by the on-screen object buttons; the map scene consumes it and walks the administrator there. */
+  walkRequest: string | null = null;
   private autoplayAfterBriefing = false;
   paused = true; speed: (typeof SPEEDS)[number] = 1;
   report: AnnualSnapshot | null = null;   // year-end overlay
@@ -106,6 +108,7 @@ export class Controller {
     if (ok) { this.literacy.correct++; if (this.act({ type: 'grant', cents: 2_500_000, reason: `${b.year}:${q.id}` }).ok) { this.literacy.grantsCents += 2_500_000; sfx.paid(); } } else sfx.leave();
     this.emit();
   }
+  goTo(objectId: string) { this.walkRequest = objectId; this.emit(); }
   closeBriefing() { this.briefing = null; this.afterBriefing(); }
   /** Board meeting: choose an option for the open dilemma. Returns false (with a message) if it cannot be afforded. */
   decide(optionId: string): boolean {

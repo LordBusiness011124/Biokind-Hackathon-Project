@@ -6,7 +6,8 @@
   "outpatient: 22150 events raw -> 21956 after weight>0 + person join (no duplication)",
   "inpatient: 1912 events raw -> 1881 after weight>0 + person join (no duplication)",
   "design-based SEs computed (strata/PSU)",
-  "insights computed (rates/expenditure by age, payer, income with design-based SEs; spending concentration)"
+  "insights computed (rates/expenditure by age, payer, income with design-based SEs; spending concentration)",
+  "economic-burden analysis computed (family OOP / family income, design-based SEs)"
  ],
  "calibrationYear": 2024,
  "cells": [
@@ -991,6 +992,361 @@
   }
  },
  "insights": {
+  "burden": {
+   "byAge": {
+    "0-17": {
+     "anyOop": {
+      "est": 0.9011537411937286,
+      "se": 0.010526883046299161
+     },
+     "highBurden10": {
+      "est": 0.05475149596702526,
+      "se": 0.006798503571227979
+     },
+     "highBurden20": {
+      "est": 0.019557167697581132,
+      "se": 0.004406814069595287
+     },
+     "meanFamilyOopUSD": {
+      "est": 2882.151033708029,
+      "se": 176.86973231637907
+     },
+     "meanOopShareOfIncome": {
+      "est": 0.05208007383563631,
+      "se": 0.018743195870058533
+     },
+     "n": 3446
+    },
+    "18-44": {
+     "anyOop": {
+      "est": 0.885805686568117,
+      "se": 0.007804958264563165
+     },
+     "highBurden10": {
+      "est": 0.045774925238232664,
+      "se": 0.004094988744440974
+     },
+     "highBurden20": {
+      "est": 0.01519401686656466,
+      "se": 0.001926054327279928
+     },
+     "meanFamilyOopUSD": {
+      "est": 2306.800209158278,
+      "se": 116.94038892667946
+     },
+     "meanOopShareOfIncome": {
+      "est": 0.030942749258930122,
+      "se": 0.003607309595733188
+     },
+     "n": 5317
+    },
+    "45-64": {
+     "anyOop": {
+      "est": 0.9339817607138564,
+      "se": 0.004800439975103612
+     },
+     "highBurden10": {
+      "est": 0.07353641535172907,
+      "se": 0.00501370410167195
+     },
+     "highBurden20": {
+      "est": 0.027371649759771913,
+      "se": 0.0034575338628071496
+     },
+     "meanFamilyOopUSD": {
+      "est": 3150.8895908764343,
+      "se": 161.33031515890096
+     },
+     "meanOopShareOfIncome": {
+      "est": 0.11421226894937879,
+      "se": 0.05609419619800983
+     },
+     "n": 4532
+    },
+    "65+": {
+     "anyOop": {
+      "est": 0.9635469556988113,
+      "se": 0.004179011197361375
+     },
+     "highBurden10": {
+      "est": 0.11857315204935852,
+      "se": 0.006743633978363845
+     },
+     "highBurden20": {
+      "est": 0.04665560878003722,
+      "se": 0.004196377803258114
+     },
+     "meanFamilyOopUSD": {
+      "est": 3245.805213916971,
+      "se": 148.0267439271827
+     },
+     "meanOopShareOfIncome": {
+      "est": 0.06442771456321329,
+      "se": 0.00459154809588033
+     },
+     "n": 4790
+    }
+   },
+   "byPayer": {
+    "medicaid": {
+     "anyOop": {
+      "est": 0.7978226873233469,
+      "se": 0.016668825045885342
+     },
+     "highBurden10": {
+      "est": 0.060012662414333603,
+      "se": 0.007882077471083982
+     },
+     "highBurden20": {
+      "est": 0.027822403375429544,
+      "se": 0.005661700382085037
+     },
+     "meanFamilyOopUSD": {
+      "est": 1055.3168839668785,
+      "se": 78.07213065521711
+     },
+     "meanOopShareOfIncome": {
+      "est": 0.05356190355675003,
+      "se": 0.020828035576292446
+     },
+     "n": 3461
+    },
+    "medicare": {
+     "anyOop": {
+      "est": 0.9592032368483251,
+      "se": 0.0042609158959166435
+     },
+     "highBurden10": {
+      "est": 0.11942948852600581,
+      "se": 0.006616962035660631
+     },
+     "highBurden20": {
+      "est": 0.04762168985287731,
+      "se": 0.004061974066904709
+     },
+     "meanFamilyOopUSD": {
+      "est": 3119.587107321267,
+      "se": 142.1594673042597
+     },
+     "meanOopShareOfIncome": {
+      "est": 0.06375434177441136,
+      "se": 0.004414816570869284
+     },
+     "n": 5207
+    },
+    "other": {
+     "anyOop": {
+      "est": 0.8943495524883881,
+      "se": 0.02967148774243368
+     },
+     "highBurden10": {
+      "est": 0.04746475559455582,
+      "se": 0.013410354879938517
+     },
+     "highBurden20": {
+      "est": 0.016712678296529893,
+      "se": 0.007183942719542709
+     },
+     "meanFamilyOopUSD": {
+      "est": 2354.9802576009492,
+      "se": 603.7832218910916
+     },
+     "meanOopShareOfIncome": {
+      "est": 0.02663704952708964,
+      "se": 0.00529990032746001
+     },
+     "n": 280
+    },
+    "private": {
+     "anyOop": {
+      "est": 0.9571184354532967,
+      "se": 0.004185066201389717
+     },
+     "highBurden10": {
+      "est": 0.0524398337900005,
+      "se": 0.004650298214443381
+     },
+     "highBurden20": {
+      "est": 0.016005372517613137,
+      "se": 0.0023760722623885774
+     },
+     "meanFamilyOopUSD": {
+      "est": 3487.9568544304548,
+      "se": 146.39837470478594
+     },
+     "meanOopShareOfIncome": {
+      "est": 0.04287029482796819,
+      "se": 0.007847761399498016
+     },
+     "n": 8012
+    },
+    "uninsured": {
+     "anyOop": {
+      "est": 0.7817064129526883,
+      "se": 0.019880961613159935
+     },
+     "highBurden10": {
+      "est": 0.05926664982064828,
+      "se": 0.011410794006412765
+     },
+     "highBurden20": {
+      "est": 0.018983875002259197,
+      "se": 0.006431597015853016
+     },
+     "meanFamilyOopUSD": {
+      "est": 1525.155027989379,
+      "se": 214.33836448033563
+     },
+     "meanOopShareOfIncome": {
+      "est": 0.24447600889372398,
+      "se": 0.20796979284531267
+     },
+     "n": 1125
+    }
+   },
+   "byPoverty": {
+    "High income (400%+)": {
+     "anyOop": {
+      "est": 0.9679383813933597,
+      "se": 0.003844178283630992
+     },
+     "highBurden10": {
+      "est": 0.029733154310493157,
+      "se": 0.003026917590930176
+     },
+     "highBurden20": {
+      "est": 0.006825946610324511,
+      "se": 0.0014386854656875563
+     },
+     "meanFamilyOopUSD": {
+      "est": 3723.6980393797403,
+      "se": 150.09806670412877
+     },
+     "meanOopShareOfIncome": {
+      "est": 0.022218022750841337,
+      "se": 0.0008508097131829352
+     },
+     "n": 7647
+    },
+    "Low income (125-199%)": {
+     "anyOop": {
+      "est": 0.8418559559244726,
+      "se": 0.017782614437161202
+     },
+     "highBurden10": {
+      "est": 0.10698930588671525,
+      "se": 0.012580693877082681
+     },
+     "highBurden20": {
+      "est": 0.03695923759051233,
+      "se": 0.005231093346850662
+     },
+     "meanFamilyOopUSD": {
+      "est": 1644.96535861452,
+      "se": 165.37786190788287
+     },
+     "meanOopShareOfIncome": {
+      "est": 0.04632248243263625,
+      "se": 0.004357652728898466
+     },
+     "n": 2293
+    },
+    "Middle income (200-399%)": {
+     "anyOop": {
+      "est": 0.915864066433045,
+      "se": 0.008548938921143865
+     },
+     "highBurden10": {
+      "est": 0.0737807370354975,
+      "se": 0.007430146832411516
+     },
+     "highBurden20": {
+      "est": 0.019582423016560165,
+      "se": 0.00338511405689917
+     },
+     "meanFamilyOopUSD": {
+      "est": 2605.4129659697774,
+      "se": 166.19985892048786
+     },
+     "meanOopShareOfIncome": {
+      "est": 0.03363296491961328,
+      "se": 0.0018200454757244706
+     },
+     "n": 5004
+    },
+    "Near poor (100-124%)": {
+     "anyOop": {
+      "est": 0.8274121201637533,
+      "se": 0.031305379325085606
+     },
+     "highBurden10": {
+      "est": 0.09916233870473014,
+      "se": 0.018109365455520825
+     },
+     "highBurden20": {
+      "est": 0.0521640910862531,
+      "se": 0.014617920189054398
+     },
+     "meanFamilyOopUSD": {
+      "est": 1237.7099614008835,
+      "se": 219.89832028375432
+     },
+     "meanOopShareOfIncome": {
+      "est": 0.05135074656463772,
+      "se": 0.009721285153152829
+     },
+     "n": 799
+    },
+    "Poor (<100% FPL)": {
+     "anyOop": {
+      "est": 0.7731914531805336,
+      "se": 0.021785488253281766
+     },
+     "highBurden10": {
+      "est": 0.18298303371271268,
+      "se": 0.016530249093684984
+     },
+     "highBurden20": {
+      "est": 0.10891259283282931,
+      "se": 0.013952015141846248
+     },
+     "meanFamilyOopUSD": {
+      "est": 899.937532160321,
+      "se": 110.38521461747025
+     },
+     "meanOopShareOfIncome": {
+      "est": 0.38224206565068025,
+      "se": 0.1638301686241731
+     },
+     "n": 2342
+    }
+   },
+   "caveat": "Burden uses TOTSLF24 (all out-of-pocket health spending, including prescriptions and dental). Income is reported per family; 4.5% of DUID+FAMIDYR groups report differing person-level FAMINC24 values, so each person's own FAMINC24 is used.",
+   "definition": "People in families with positive income. Family OOP = sum of TOTSLF24 over family members (DUID+FAMIDYR); burden = family OOP / FAMINC24. High burden = more than 10% (or 20%) of family income.",
+   "overall": {
+    "anyOop": {
+     "est": 0.9151745492611887,
+     "se": 0.005347410800259739
+    },
+    "highBurden10": {
+     "est": 0.06795885683362252,
+     "se": 0.0035964146087191593
+    },
+    "highBurden20": {
+     "est": 0.02492810939148426,
+     "se": 0.002077515905785828
+    },
+    "meanFamilyOopUSD": {
+     "est": 2807.9615314691405,
+     "se": 98.97106501789344
+    },
+    "meanOopShareOfIncome": {
+     "est": 0.06169957247896456,
+     "se": 0.014790480996739288
+    },
+    "n": 18085
+   }
+  },
   "meanTotalExpenditureUSD": 8346.524876532008,
   "medianTotalExpenditureUSD": 1700.0,
   "note": "TOTEXP24 = total health care expenditure from all sources (not hospital revenue). SEs: Taylor linearisation, strata/PSU.",

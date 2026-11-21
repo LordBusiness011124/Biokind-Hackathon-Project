@@ -133,7 +133,9 @@ export const CARDS: DecisionCard[] = [
     id: 'charity-policy', title: 'Charity-care policy', defaultOptionId: 'status-quo',
     story: 'The board debates how generously to help patients who cannot afford their share of the bill.',
     fact: (a) => { const e = a.payments.emergency.byPayer;
-      return `MEPS: uninsured patients’ own payments average ${usd(e.uninsured.facilityOutOfPocketCents.mean)} per ER visit versus ${usd(e.private.facilityOutOfPocketCents.mean)} for the privately insured${e.uninsured.source?.includes('low') ? ' (small sample)' : ''}.`; },
+      const b = a.insights?.burden?.byPoverty, poor = b?.['Poor (<100% FPL)'], rich = b?.['High income (400%+)'];
+      const burden = poor && rich ? ` Across all care, ${pct(poor.highBurden10.est, 1)} of people in poor families spend over 10% of income out of pocket versus ${pct(rich.highBurden10.est, 1)} in high-income families.` : '';
+      return `MEPS: uninsured patients’ own payments average ${usd(e.uninsured.facilityOutOfPocketCents.mean)} per ER visit versus ${usd(e.private.facilityOutOfPocketCents.mean)} for the privately insured${e.uninsured.source?.includes('low') ? ' (small sample)' : ''}.${burden}`; },
     options: [
       { id: 'adopt', label: 'Adopt generous assistance', detail: 'Adds $250,000 a year to the assistance fund.', upfrontCents: 0, outcome: { text: 'The assistance fund grows by $250,000 a year. Patients and the community respond well.', trust: 3, subsidyDeltaCents: k(250_000) } },
       { id: 'status-quo', label: 'Keep things as they are', detail: 'No change.', upfrontCents: 0, outcome: { text: 'No change to assistance.' } },

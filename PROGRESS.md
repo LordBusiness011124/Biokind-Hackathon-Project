@@ -6,3 +6,4 @@
 - Known limits: single-year cross-section (2044 is a scenario); catchment/hospital share/costs are assumptions; payments are not hospital revenue; single-PSU strata skipped in variance.
 - Added: How to Play guide (goal, loop, controls, scoring, learning outcomes), live Mission card and graded scorecard, Challenge mode events, Why MEPS tab.
 - Added: yearly board decisions (12 cards), community trust and access policy so choices have lasting consequences; CONTRIBUTING.md and CI (tests, typecheck, build) for contributors.
+- Added: economic-burden analysis (family OOP / family income, design-based CIs) answering the datathon question, object-based click-to-walk movement, shorter objective-based instructions, challenge mapping (docs/CHALLENGE_ALIGNMENT.md) and the updated 8-slide deck.

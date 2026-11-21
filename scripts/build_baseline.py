@@ -118,6 +118,37 @@ def build_insights(p, log):
             "meanTotalExpenditureUSD": mean_exp, "medianTotalExpenditureUSD": med_exp,
             "note": "TOTEXP24 = total health care expenditure from all sources (not hospital revenue). SEs: Taylor linearisation, strata/PSU."}
 
+POVERTY_LABELS = {1: "Poor (<100% FPL)", 2: "Near poor (100-124%)", 3: "Low income (125-199%)", 4: "Middle income (200-399%)", 5: "High income (400%+)"}
+
+def build_burden(p, log):
+    """Economic burden of care: family out-of-pocket spending (sum of TOTSLF24 over all family members) relative to family income (FAMINC24).
+    Statistics are for people living in families with positive income, weighted by PERWT24F, with design-based SEs (domain estimation)."""
+    raw = pd.read_stata(dta_path("HC-256"), columns=["DUID", "FAMIDYR", "TOTSLF24"], convert_categoricals=False)
+    assert (raw.TOTSLF24 >= 0).all(), "TOTSLF24 has negative/sentinel values; inspect codebook"
+    raw["famoop"] = raw.groupby(["DUID", "FAMIDYR"]).TOTSLF24.transform("sum")      # family total includes members with zero person weight
+    fam = raw.groupby(["DUID", "FAMIDYR"]).famoop.first()
+    q = p.copy(); q["famoop"] = fam.reindex(pd.MultiIndex.from_frame(q[["DUID", "FAMIDYR"]])).values
+    assert q.famoop.notna().all() and (q.famoop >= 0).all(), "family OOP join failed"
+    valid = (q.FAMINC24 > 0).values.astype(float)                                    # burden is undefined for zero or negative family income
+    ratio = np.where(valid > 0, q.famoop.values / np.where(q.FAMINC24.values > 0, q.FAMINC24.values, 1), 0.0)
+    def row(mask):
+        ind = valid * mask.astype(float)
+        out = {"n": int(ind.sum())}
+        for key, y in (("highBurden10", (ratio > 0.10)), ("highBurden20", (ratio > 0.20)), ("anyOop", (q.famoop.values > 0))):
+            est, se = ratio_se(q, y.astype(float) * ind, ind); out[key] = {"est": est, "se": se}
+        est, se = ratio_se(q, q.famoop.values.astype(float) * ind, ind); out["meanFamilyOopUSD"] = {"est": est, "se": se}
+        est, se = ratio_se(q, np.where(valid > 0, ratio, 0.0) * ind, ind); out["meanOopShareOfIncome"] = {"est": est, "se": se}
+        return out
+    everyone = np.ones(len(q), bool)
+    res = {"definition": "People in families with positive income. Family OOP = sum of TOTSLF24 over family members (DUID+FAMIDYR); burden = family OOP / FAMINC24. High burden = more than 10% (or 20%) of family income.",
+           "overall": row(everyone),
+           "byPoverty": {POVERTY_LABELS[c]: row((q.POVCAT24 == c).values) for c in sorted(POVERTY_LABELS)},
+           "byPayer": {py: row((q.payer == py).values) for py in PAYERS},
+           "byAge": {a_: row((q.age_band == a_).values) for a_, _, _ in AGE_BANDS},
+           "caveat": "Burden uses TOTSLF24 (all out-of-pocket health spending, including prescriptions and dental). Income is reported per family; 4.5% of DUID+FAMIDYR groups report differing person-level FAMINC24 values, so each person's own FAMINC24 is used."}
+    log.append("economic-burden analysis computed (family OOP / family income, design-based SEs)")
+    return res
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--output", default=str(DERIVED))
@@ -151,7 +182,7 @@ def main():
             "paymentVariables": EVENT_PAY, "weight": "PERWT24F", "personKey": "DUPERSID (not exported)",
             "minCellN": MIN_CELL_N, "minPaymentN": MIN_PAY_N, "lowPaymentN": LOW_PAY_N,
             "caveat": "MEPS payments are expenditures by payment source, not hospital revenue, cost or profit."},
-        "designBased": design, "insights": build_insights(p, log), "marginals": {"payerShare": payer_share, "ageShare": age_share, "overallRatesPerPersonYear": overall_rates},
+        "designBased": design, "insights": {**build_insights(p, log), "burden": build_burden(p, log)}, "marginals": {"payerShare": payer_share, "ageShare": age_share, "overallRatesPerPersonYear": overall_rates},
         "cells": cells, "payments": payments, "reconciliation": recon, "buildLog": log,
     }
     out = Path(a.output); out.mkdir(parents=True, exist_ok=True)

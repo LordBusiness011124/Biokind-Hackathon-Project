@@ -64,3 +64,23 @@ export function MethodsPrimer() {
     </section>
   );
 }
+
+/** The headline inequity for the challenge question: who carries the economic burden of care, in dollars versus share of income. */
+export function BurdenLesson({ ctl }: { ctl: Controller }) {
+  const b = ctl.asset.insights?.burden; if (!b) return null;
+  const rows = (['Poor (<100% FPL)', 'Near poor (100-124%)', 'Low income (125-199%)', 'Middle income (200-399%)', 'High income (400%+)'] as string[]).filter((k) => b.byPoverty[k]).map((k) => [k, b.byPoverty[k]] as const), max = Math.max(...rows.map(([, r]) => r.highBurden10.est + 1.96 * r.highBurden10.se));
+  return (
+    <section className="card">
+      <h3>Who carries the economic burden? <Badge kind="MEPS_OBSERVED" /></h3>
+      <p className="note">Share of people in families whose out-of-pocket health spending is <b>over 10% of family income</b> ({pct(b.overall.highBurden10.est, 1)} overall), with 95% intervals.</p>
+      {rows.map(([name, r]) => { const e = r.highBurden10, lo = Math.max(0, e.est - 1.96 * e.se), hi = e.est + 1.96 * e.se; return (
+        <div className="xrow" key={name}>
+          <div className="xl">{name}<small> n={r.n}</small></div>
+          <div className="xbar"><i className="pc-uninsured" style={{ width: `${(e.est / max) * 100}%` }} /><u style={{ left: `${(lo / max) * 100}%`, width: `${((hi - lo) / max) * 100}%` }} /></div>
+          <div className="xv"><b>{pct(e.est, 1)}</b></div>
+          <div className="xs"><small>spends {usd(r.meanFamilyOopUSD.est * 100)} a year out of pocket on average</small></div>
+        </div>); })}
+      <p className="note"><b>Poor families spend the fewest dollars but are far likelier to be over the line.</b> That gap is what the game’s affordability score and assistance fund are about. {b.caveat}</p>
+    </section>
+  );
+}

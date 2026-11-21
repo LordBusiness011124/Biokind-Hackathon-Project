@@ -140,3 +140,13 @@ kbd { font: inherit; color: var(--text); border: 1px solid var(--line); border-r
 .option ul { margin: 8px 0; padding-left: 18px; } .option li { margin: 3px 0; } .option li.cost { color: var(--amber); } .option li.risk { color: var(--red); } .option li.free { color: var(--mute); }
 .chips { display: flex; gap: 8px; margin: 10px 0; } .chip { padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); font-size: .8rem; } .chip.pos { color: var(--green); } .chip.neg { color: var(--red); }
 .effects { margin: 4px 0; padding-left: 18px; } .effects li { margin: 3px 0; }
+
+/* object shortcuts under the map */
+.stage-help { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+.stage-help button { margin: 0; padding: 3px 9px; font-size: .8rem; } .stage-help button kbd { margin-right: 4px; }
+
+/* short instructions */
+.lead { font-size: 1.05rem; margin: 0 0 6px; } .objgrid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; } .objbox { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; } .objbox span { color: var(--mute); font-size: .85rem; }
+.steps { margin: 6px 0; padding-left: 22px; } .steps li { margin: 3px 0; } .weights { color: var(--mute); margin: 4px 0; } ul.short { padding-left: 20px; } ul.short li { margin: 6px 0; }
+kbd { background: var(--card); border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; font-size: .8rem; }
+@media (max-width: 480px) { .objgrid { grid-template-columns: 1fr; } }

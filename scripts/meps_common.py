@@ -32,7 +32,7 @@ SERVICES = ["emergency", "outpatient", "inpatient"]
 QUANTILE_GRID = [round(i / 20, 2) for i in range(21)]  # 0,0.05,...,1
 
 # Person-file variables actually used (verified present in HC-256).
-PERSON_VARS = ["DUPERSID", "PERWT24F", "VARSTR", "VARPSU", "AGELAST", "SEX", "INSCOV24", "POVCAT24",
+PERSON_VARS = ["DUPERSID", "DUID", "FAMIDYR", "FAMINC24", "TOTSLF24", "PERWT24F", "VARSTR", "VARPSU", "AGELAST", "SEX", "INSCOV24", "POVCAT24",
                "MCREV24", "MCDEV24", "PRVEV24", "ERTOT24", "OPTOTV24", "IPDIS24", "IPNGTD24",
                "ERTEXP24", "OPTEXP24", "IPTEXP24", "TOTEXP24"]
 
