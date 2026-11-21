@@ -1,0 +1,13 @@
+{
+  "name": "hospital-tycoon-2044",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": ["packages/*", "apps/*"],
+  "scripts": {
+    "dev": "npm run dev -w @hospital/web",
+    "build": "npm run build -w @hospital/web",
+    "test": "npm test -w @hospital/sim",
+    "typecheck": "npm run typecheck -w @hospital/sim && npm run typecheck -w @hospital/web",
+    "data": ".venv/bin/python scripts/build_baseline.py && .venv/bin/python scripts/validate_baseline.py"
+  }
+}

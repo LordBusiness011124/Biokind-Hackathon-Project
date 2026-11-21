@@ -1,0 +1,117 @@
+import { describe, expect, it } from 'vitest';
+import { END_YEAR, Simulation, makeDemoAsset, serialize, validateAsset, type Action } from '../src';
+import { loadAsset } from './helpers';
+
+const asset = loadAsset();
+
+describe('real MEPS asset', () => {
+  it('is MEPS_CALIBRATED and valid', () => {
+    expect(asset.provenanceKind).toBe('MEPS_CALIBRATED');
+    expect(asset.counts.personsPositiveWeight).toBe(18683);
+  });
+  it('rejects malformed assets', () => {
+    expect(() => validateAsset({})).toThrow();
+    expect(() => validateAsset({ ...asset, cells: [] })).toThrow();
+  });
+});
+
+describe('reproducibility', () => {
+  it('same seed + actions => identical serialized state', () => {
+    const run = () => {
+      const s = Simulation.create(asset, 42);
+      s.applyAction({ type: 'hire', service: 'emergency', role: 'physician', count: 2 });
+      s.advance(3000); s.applyAction({ type: 'addRoom', service: 'outpatient' }); s.advance(6000);
+      return serialize(s.state);
+    };
+    expect(run()).toBe(run());
+  });
+  it('different seeds differ', () => {
+    const a = Simulation.create(asset, 1); a.advance(2000);
+    const b = Simulation.create(asset, 2); b.advance(2000);
+    expect(serialize(a.state)).not.toBe(serialize(b.state));
+  });
+  it('arrivals are identical regardless of player decisions (common random numbers)', () => {
+    const a = Simulation.create(asset, 7), b = Simulation.create(asset, 7);
+    b.applyAction({ type: 'hire', service: 'emergency', role: 'nurse', count: 6 });
+    b.applyAction({ type: 'setProcessLevel', level: 2 });
+    a.runToYearEnd(); b.runToYearEnd();
+    expect(a.state.snapshots[0].arrivals).toEqual(b.state.snapshots[0].arrivals);
+  });
+});
+
+describe('invariants', () => {
+  it('cash identity and non-negativity hold through a year', () => {
+    const s = Simulation.create(asset, 3);
+    for (let i = 0; i < 20; i++) { s.advance(500); expect(s.checkInvariants()).toEqual([]); }
+  });
+  it('no duplicate billing: revenue entries unique per visit', () => {
+    const s = Simulation.create(asset, 5); s.advance(4000);
+    const refs = s.state.recent.filter((e) => e.category.startsWith('revenue')).map((e) => e.ref);
+    expect(new Set(refs).size).toBe(refs.length);
+  });
+  it('rejects bad actions', () => {
+    const s = Simulation.create(asset, 1);
+    expect(s.applyAction({ type: 'fire', service: 'emergency', role: 'nurse', count: 999 }).ok).toBe(false);
+    expect(s.applyAction({ type: 'hire', service: 'emergency', role: 'nurse', count: 0 }).ok).toBe(false);
+    s.state.cashCents = 0;
+    expect(s.applyAction({ type: 'addRoom', service: 'emergency' }).ok).toBe(false);
+    expect(s.state.departments.emergency.roomSlots).toBe(3);
+  });
+  it('more staff does not reduce throughput (same seed)', () => {
+    const base = Simulation.create(asset, 11), more = Simulation.create(asset, 11);
+    more.applyAction({ type: 'hire', service: 'emergency', role: 'physician', count: 5 });
+    more.applyAction({ type: 'hire', service: 'emergency', role: 'nurse', count: 9 });
+    base.runToYearEnd(); more.runToYearEnd();
+    expect(more.state.snapshots[0].treated.emergency).toBeGreaterThanOrEqual(base.state.snapshots[0].treated.emergency);
+  });
+});
+
+describe('stress', () => {
+  it('no staff: nothing treated, all arrivals become unmet, no NaN', () => {
+    const s = Simulation.create(asset, 9);
+    for (const sv of ['emergency', 'outpatient'] as const) { s.state.departments[sv].nurses = 0; s.state.departments[sv].physicians = 0; }
+    s.runToYearEnd(); const y = s.state.snapshots[0];
+    expect(y.treated.emergency + y.treated.outpatient).toBe(0);
+    expect(Number.isFinite(y.avgWaitTicks)).toBe(true);
+  });
+  it('zero catchment => zero arrivals', () => {
+    const a = structuredClone(Simulation.create(asset, 1).a); a.catchmentPopulation.value = 0;
+    const s = Simulation.create(asset, 1, a); s.state.cashCents = 10 ** 12; s.runToYearEnd();
+    expect(s.state.snapshots[0].arrivals.emergency).toBe(0);
+  });
+  it('bankrupt hospital halts', () => {
+    const s = Simulation.create(asset, 1); s.state.cashCents = -10_000_000_000; s.runToEnd();
+    expect(s.state.bankrupt).toBe(true); expect(s.state.finished).toBe(false);
+  });
+  it('demo asset runs and is flagged DEMO_SYNTHETIC', () => {
+    const d = makeDemoAsset(); validateAsset(d);
+    const s = Simulation.create(d, 1); s.state.cashCents = 10 ** 12; s.runToYearEnd();
+    expect(s.state.snapshots[0].mode).toBe('DEMO_SYNTHETIC');
+  });
+});
+
+describe('20-year run', () => {
+  it('completes 2024..2044 with 21 snapshots, no NaN, invariants hold', () => {
+    const s = Simulation.create(asset, 2044); s.runToEnd();
+    expect(s.state.finished).toBe(true);
+    expect(s.state.snapshots.length).toBe(21);
+    expect(s.state.snapshots[0].year).toBe(2024); expect(s.state.snapshots[20].year).toBe(END_YEAR);
+    expect(JSON.stringify(s.state.snapshots)).not.toMatch(/NaN|null/);
+    for (const sn of s.state.snapshots) expect(sn.cashCents).toBe(sn.cashStartCents + sn.revenueCents - sn.expensesCents);
+    expect(s.state.snapshots[0].cashStartCents + s.state.snapshots.reduce((t, x) => t + x.netCents, 0)).toBe(s.state.cashCents);
+  });
+});
+
+describe('payment calibration', () => {
+  it('simulated mean facility payment per ER visit tracks the MEPS-derived payer-mix mean (heavy tail not inflated)', () => {
+    const s = Simulation.create(asset, 99);
+    for (const sv of ['emergency', 'outpatient'] as const) { s.state.departments[sv].physicians = 40; s.state.departments[sv].nurses = 40; s.state.departments[sv].roomSlots = 20; }
+    s.state.cashCents = 10 ** 13; s.runToYearEnd();
+    const y = s.state.snapshots[0];
+    const mix = s.payerMix('emergency');
+    const expected = Object.entries(mix).reduce((t, [p, sh]) => t + sh * asset.payments.emergency.byPayer[p].facilityPaymentCents.mean, 0);
+    const simulated = y.ledger['revenue.emergency'] / y.treated.emergency;
+    expect(simulated / expected).toBeGreaterThan(0.75);
+    expect(simulated / expected).toBeLessThan(1.25);
+  });
+});
