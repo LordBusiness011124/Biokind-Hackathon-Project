@@ -5,7 +5,8 @@
   "emergency: 4351 events raw -> 4261 after weight>0 + person join (no duplication)",
   "outpatient: 22150 events raw -> 21956 after weight>0 + person join (no duplication)",
   "inpatient: 1912 events raw -> 1881 after weight>0 + person join (no duplication)",
-  "design-based SEs computed (strata/PSU)"
+  "design-based SEs computed (strata/PSU)",
+  "insights computed (rates/expenditure by age, payer, income with design-based SEs; spending concentration)"
  ],
  "calibrationYear": 2024,
  "cells": [
@@ -988,6 +989,326 @@
    "dtaSha256": "b4bde859b39f626345561c05570292bb7264dd92eb76ce0c1a14d6b89076aed5",
    "sourceUrl": "https://meps.ahrq.gov/mepsweb/data_files/pufs/h256/h256dta.zip"
   }
+ },
+ "insights": {
+  "meanTotalExpenditureUSD": 8346.524876532008,
+  "medianTotalExpenditureUSD": 1700.0,
+  "note": "TOTEXP24 = total health care expenditure from all sources (not hospital revenue). SEs: Taylor linearisation, strata/PSU.",
+  "ratesAndSpendingByGroup": {
+   "ageBand": {
+    "0-17": {
+     "anyErVisit": {
+      "est": 0.11368412092891639,
+      "se": 0.006752100278084412
+     },
+     "emergency": {
+      "est": 0.1461395774891213,
+      "se": 0.009259951052913684
+     },
+     "inpatient": {
+      "est": 0.02968510167917701,
+      "se": 0.0038754443448922545
+     },
+     "n": 3557,
+     "outpatient": {
+      "est": 0.39385944714118504,
+      "se": 0.04420239264099586
+     },
+     "sparse": false,
+     "totalExpenditureUSD": {
+      "est": 3629.749263813704,
+      "se": 453.26301273433637
+     },
+     "weightedShare": 0.21375232727204702
+    },
+    "18-44": {
+     "anyErVisit": {
+      "est": 0.11423277369450807,
+      "se": 0.004661977332330448
+     },
+     "emergency": {
+      "est": 0.1591764483922819,
+      "se": 0.007588633614024815
+     },
+     "inpatient": {
+      "est": 0.05513827631949121,
+      "se": 0.004034596520410303
+     },
+     "n": 5475,
+     "outpatient": {
+      "est": 0.5753214435380712,
+      "se": 0.034843291599970426
+     },
+     "sparse": false,
+     "totalExpenditureUSD": {
+      "est": 5444.5478286050975,
+      "se": 291.05418331425784
+     },
+     "weightedShare": 0.35856444921613223
+    },
+    "45-64": {
+     "anyErVisit": {
+      "est": 0.13858746968827218,
+      "se": 0.006069827599393889
+     },
+     "emergency": {
+      "est": 0.2062047230209513,
+      "se": 0.010843044876930458
+     },
+     "inpatient": {
+      "est": 0.08163218425410786,
+      "se": 0.00707007087290622
+     },
+     "n": 4701,
+     "outpatient": {
+      "est": 1.2413831466721774,
+      "se": 0.09731154102969654
+     },
+     "sparse": false,
+     "totalExpenditureUSD": {
+      "est": 11108.647812493478,
+      "se": 532.9144536218688
+     },
+     "weightedShare": 0.24028694326147204
+    },
+    "65+": {
+     "anyErVisit": {
+      "est": 0.2208735072209954,
+      "se": 0.007187312224481512
+     },
+     "emergency": {
+      "est": 0.3355620021418555,
+      "se": 0.013273775912150414
+     },
+     "inpatient": {
+      "est": 0.20187386732095317,
+      "se": 0.008724376456241729
+     },
+     "n": 4950,
+     "outpatient": {
+      "est": 2.1970197013360027,
+      "se": 0.13341443291595198
+     },
+     "sparse": false,
+     "totalExpenditureUSD": {
+      "est": 15737.629370289309,
+      "se": 448.76503696422554
+     },
+     "weightedShare": 0.18739628025034888
+    }
+   },
+   "incomeBand": {
+    "200-399%FPL": {
+     "anyErVisit": {
+      "est": 0.1428706500554446,
+      "se": 0.005973931670977263
+     },
+     "emergency": {
+      "est": 0.20122940643918324,
+      "se": 0.01021432907383277
+     },
+     "inpatient": {
+      "est": 0.08387779673669991,
+      "se": 0.0056931982625889445
+     },
+     "n": 5004,
+     "outpatient": {
+      "est": 1.0011552184163048,
+      "se": 0.07590157793402076
+     },
+     "sparse": false,
+     "totalExpenditureUSD": {
+      "est": 8007.691026963938,
+      "se": 535.3137826830061
+     },
+     "weightedShare": 0.2800363517763721
+    },
+    "400%+FPL": {
+     "anyErVisit": {
+      "est": 0.11400747187851881,
+      "se": 0.00485343357338276
+     },
+     "emergency": {
+      "est": 0.15391835087938044,
+      "se": 0.0075826643477616236
+     },
+     "inpatient": {
+      "est": 0.061137613170081914,
+      "se": 0.003458665208469096
+     },
+     "n": 7647,
+     "outpatient": {
+      "est": 1.075930530570606,
+      "se": 0.0644207950267743
+     },
+     "sparse": false,
+     "totalExpenditureUSD": {
+      "est": 8862.431807955805,
+      "se": 293.9911288512096
+     },
+     "weightedShare": 0.45708667329933067
+    },
+    "<200%FPL": {
+     "anyErVisit": {
+      "est": 0.1819536247841591,
+      "se": 0.006871319426998796
+     },
+     "emergency": {
+      "est": 0.28164691154533716,
+      "se": 0.012098898844303952
+     },
+     "inpatient": {
+      "est": 0.12221467737531973,
+      "se": 0.006739667129631593
+     },
+     "n": 6032,
+     "outpatient": {
+      "est": 0.8685671675319026,
+      "se": 0.0664076841389141
+     },
+     "sparse": false,
+     "totalExpenditureUSD": {
+      "est": 7810.424718023374,
+      "se": 357.28444946233725
+     },
+     "weightedShare": 0.2628769749242974
+    }
+   },
+   "payer": {
+    "medicaid": {
+     "anyErVisit": {
+      "est": 0.1842131814267822,
+      "se": 0.008558767939522233
+     },
+     "emergency": {
+      "est": 0.27821600108719696,
+      "se": 0.016305392926126
+     },
+     "inpatient": {
+      "est": 0.09105096979049601,
+      "se": 0.007949844665296316
+     },
+     "n": 3697,
+     "outpatient": {
+      "est": 0.7781267455168265,
+      "se": 0.08695772175315074
+     },
+     "sparse": false,
+     "totalExpenditureUSD": {
+      "est": 5903.469597595308,
+      "se": 558.9170120641404
+     },
+     "weightedShare": 0.19430611166135597
+    },
+    "medicare": {
+     "anyErVisit": {
+      "est": 0.22704207006445234,
+      "se": 0.007041517335025801
+     },
+     "emergency": {
+      "est": 0.35350371260623237,
+      "se": 0.013357131980139034
+     },
+     "inpatient": {
+      "est": 0.21153675228376614,
+      "se": 0.009179040246041784
+     },
+     "n": 5409,
+     "outpatient": {
+      "est": 2.218133841256192,
+      "se": 0.13352828395056635
+     },
+     "sparse": false,
+     "totalExpenditureUSD": {
+      "est": 16543.390798405086,
+      "se": 452.47065594883344
+     },
+     "weightedShare": 0.20631459552094256
+    },
+    "other": {
+     "anyErVisit": {
+      "est": 0.1527916197641877,
+      "se": 0.02684439903125239
+     },
+     "emergency": {
+      "est": 0.2698098241596952,
+      "se": 0.06340150748895733
+     },
+     "inpatient": {
+      "est": 0.06562347298585638,
+      "se": 0.01979553492195316
+     },
+     "n": 290,
+     "outpatient": {
+      "est": 1.1671597828354294,
+      "se": 0.3658258384284472
+     },
+     "sparse": false,
+     "totalExpenditureUSD": {
+      "est": 7471.644522546409,
+      "se": 1164.0222330435872
+     },
+     "weightedShare": 0.016294745878273294
+    },
+    "private": {
+     "anyErVisit": {
+      "est": 0.09614285930837259,
+      "se": 0.004108469814495778
+     },
+     "emergency": {
+      "est": 0.1228380951763752,
+      "se": 0.005757558017618531
+     },
+     "inpatient": {
+      "est": 0.03879813063304165,
+      "se": 0.0029125639059377375
+     },
+     "n": 8081,
+     "outpatient": {
+      "est": 0.706355244290546,
+      "se": 0.038174394433998164
+     },
+     "sparse": false,
+     "totalExpenditureUSD": {
+      "est": 6932.431689285586,
+      "se": 290.7986576421218
+     },
+     "weightedShare": 0.5183512511330507
+    },
+    "uninsured": {
+     "anyErVisit": {
+      "est": 0.07709136680727133,
+      "se": 0.009849947832317808
+     },
+     "emergency": {
+      "est": 0.08777949815786293,
+      "se": 0.011355818264657345
+     },
+     "inpatient": {
+      "est": 0.01616151808523748,
+      "se": 0.0050118929676165125
+     },
+     "n": 1206,
+     "outpatient": {
+      "est": 0.10030087347085573,
+      "se": 0.028581772369562344
+     },
+     "sparse": false,
+     "totalExpenditureUSD": {
+      "est": 1098.6383959785917,
+      "se": 120.51086848937075
+     },
+     "weightedShare": 0.06473329580637766
+    }
+   }
+  },
+  "spendingConcentration": {
+   "top1": 0.22377102891368747,
+   "top10": 0.655837344139894,
+   "top5": 0.4958583232214547,
+   "top50": 0.9718891125130856
+  },
+  "zeroExpenditureShare": 0.14522244785040714
  },
  "marginals": {
   "ageShare": {

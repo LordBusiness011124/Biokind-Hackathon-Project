@@ -34,3 +34,14 @@ button:focus-visible { outline: 2px solid var(--amber); outline-offset: 1px; }
 .ledger { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 12px; } .spark { width: 100%; max-width: 420px; height: 70px; background: var(--card); }
 .json { background: #0b1220; padding: 8px; font-size: 11px; max-height: 260px; overflow: auto; } code { color: var(--amber); }
 @media (max-width: 900px) { .main { flex-direction: column; } .side { width: 100%; height: 45%; border-left: 0; border-top: 2px solid var(--line); } .stage { min-height: 200px; } }
+.opts { display: flex; flex-wrap: wrap; gap: 4px; } .opts button { flex: 1 1 45%; text-align: left; padding: 8px 10px; }
+.opts button.right { background: #166534; border-color: #4ade80; } .opts button.wrong { background: #7f1d1d; border-color: #f87171; }
+.reveal { margin-top: 8px; padding: 8px 10px; border-left: 4px solid; background: #0b1220; } .reveal.ok { border-color: var(--green); } .reveal.no { border-color: var(--amber); } .reveal p { margin: 4px 0; }
+.banner.ok { background: #052e16; color: #bbf7d0; border: 1px solid #166534; }
+.coach { border-color: var(--teal); } .coach h3 small { font-weight: 400; margin-left: 6px; }
+.tip { padding: 6px 0 8px; border-bottom: 1px solid var(--line); } .tip:last-child { border-bottom: 0; } .tip p { margin: 3px 0; } .tip .fact { font-size: 12px; color: var(--text); }
+.tip-warn > b { color: var(--amber); } .tip-good > b { color: var(--green); } .tip-info > b { color: var(--blue); }
+.xrow { display: grid; grid-template-columns: 96px 1fr 70px; gap: 2px 6px; align-items: center; margin: 5px 0; } .xl { font-size: 12px; } .xs { grid-column: 1 / -1; padding-left: 2px; }
+.xbar { position: relative; height: 12px; background: #0b1220; } .xbar i { position: absolute; left: 0; top: 0; height: 100%; opacity: .9; } .xbar u { position: absolute; top: 4px; height: 4px; background: #ffffffbb; text-decoration: none; }
+.xv { text-align: right; font-size: 12px; } details { margin: 4px 0; } summary { cursor: pointer; color: var(--teal); }
+.pc-0-17, .pc-18-44, .pc-45-64, .pc-65\+ { background: #60a5fa; } .pc-65\+ { background: #f59e0b; } .pc-\<200\%FPL { background: #f59e0b; } .pc-200-399\%FPL { background: #60a5fa; } .pc-400\%\+FPL { background: #14b8a6; }

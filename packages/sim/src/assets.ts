@@ -1,5 +1,7 @@
 import type { ModelProvenance, PayerGroup, ProvenanceKind, ServiceType } from './types';
 
+export interface Est { est: number; se: number }
+export interface GroupInsight { n: number; weightedShare: number; sparse: boolean; emergency: Est; outpatient: Est; inpatient: Est; totalExpenditureUSD: Est; anyErVisit: Est }
 export interface PaymentDist { mean: number; tailMean?: number; zeroShare?: number; quantileGrid: number[]; quantiles: number[]; }
 export interface EventDist {
   nEvents: number; weightedEvents: number; source?: string; nights?: PaymentDist;
@@ -15,6 +17,11 @@ export interface ModelAsset {
   counts: { personsPositiveWeight: number; weightedPopulation: number };
   definitions: Record<string, unknown>;
   marginals: { payerShare: Record<string, number>; ageShare: Record<string, number>; overallRatesPerPersonYear: Record<ServiceType, number> };
+  designBased?: { method: string; payerShare: Record<string, { est: number; se: number }>; ageShare: Record<string, { est: number; se: number }>; ratesPerPersonYear: Record<string, { est: number; se: number }> };
+  insights?: {
+    ratesAndSpendingByGroup: Record<'ageBand' | 'payer' | 'incomeBand', Record<string, GroupInsight>>;
+    spendingConcentration: Record<string, number>; zeroExpenditureShare: number; meanTotalExpenditureUSD: number; medianTotalExpenditureUSD: number; note: string;
+  };
   cells: AssetCell[];
   payments: Record<ServiceType, { pooled: EventDist; byPayer: Record<string, EventDist> }>;
   reconciliation: Record<string, { ratio: number | null }>;

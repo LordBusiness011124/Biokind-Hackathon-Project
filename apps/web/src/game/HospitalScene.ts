@@ -1,165 +1,209 @@
 import Phaser from 'phaser';
 import type { Controller } from '../controller';
-import type { PayerGroup, PlayableService, Visit } from '@hospital/sim';
+import type { Visit } from '@hospital/sim';
+import { sfx } from '../audio';
+import { DOORS, ENTRANCE, GH, GW, INTERACT, OX, ROOMS, SPAWN, WALL_H, WORLD_H, WORLD_W, bedTile, boxOrigin, buildMap, depthOf, findPath, makeTextures, proj, queueSpots, unproj, walkable, type Dept, type Tile } from './iso';
 
-const W = 960, H = 540;
-const PAYER_COLORS: Record<string, number> = { private: 0x3b82f6, medicare: 0x14b8a6, medicaid: 0xa855f7, uninsured: 0xf59e0b, other: 0x9ca3af, unknown: 0x9ca3af };
-const ENTRANCE = { x: 14, y: 205 };
-const QUEUE_CAP = 18;
+const DEPTS: Dept[] = ['emergency', 'inpatient', 'outpatient'];
+const ROOM_OF: Record<Dept, string> = { emergency: 'er', inpatient: 'ip', outpatient: 'op' };
+const QUEUE_CAP = 9;
+const BOX_H: Record<string, number> = { desk: 12, counter: 14, bench: 6, cabinet: 34, console: 18, kiosk: 26, vending: 34, hedge: 18, board: 38 };
+const CUSTOM_ORIGIN: Record<string, [number, number]> = { tree: [0.5, 0.86], plant: [0.5, 0.8], flowers: [0.5, 0.5], fountain: [0.5, 0.72], monitor: [0.5, 1] };
+const BED_H: Record<Dept, number> = { emergency: 6, outpatient: 8, inpatient: 6 };
 
-// wall rectangles [x, y, w, h]; gaps are doors
-const WALLS: [number, number, number, number][] = [
-  [0, 0, W, 12], [0, H - 12, W, 12], [W - 12, 0, 12, H],               // outer top/bottom/right
-  [0, 0, 12, 170], [0, 240, 12, H - 240],                              // outer left with entrance gap y170-240
-  [336, 12, 8, 108], [336, 168, 8, 192], [336, 408, 8, H - 420],       // hall | departments (ER door 120-168, OP door 360-408)
-  [344, 266, 316, 8],                                                   // ER | OP
-  [12, 400, 138, 8], [200, 400, 136, 8],                                // hall | admin (door 150-200)
-  [660, 12, 8, H - 24],                                                 // departments | locked ward
-];
-
-const SPOTS: Record<PlayableService, { bed: (i: number) => { x: number; y: number }; queue: (i: number) => { x: number; y: number }; label: { x: number; y: number } }> = {
-  emergency: { bed: (i) => ({ x: 380 + (i % 5) * 56, y: 56 + Math.floor(i / 5) * 46 }), queue: (i) => ({ x: 310 - (i % 6) * 24, y: 120 + Math.floor(i / 6) * 22 }), label: { x: 352, y: 26 } },
-  outpatient: { bed: (i) => ({ x: 380 + (i % 5) * 56, y: 312 + Math.floor(i / 5) * 46 }), queue: (i) => ({ x: 310 - (i % 6) * 24, y: 385 - Math.floor(i / 6) * 22 }), label: { x: 352, y: 282 } },
-};
-const INTERACTABLES = [
-  { x: 176, y: 470, r: 46, tab: 'manage', label: 'Admin desk: manage hospital' },
-  { x: 150, y: 70, r: 50, tab: 'data', label: 'Reception board: why these patients?' },
-  { x: 372, y: 200, r: 46, tab: 'manage', label: 'ER console: staffing & rooms' },
-  { x: 372, y: 460, r: 46, tab: 'manage', label: 'Clinic console: staffing & rooms' },
-];
-
-interface PSprite { spr: Phaser.GameObjects.Image; visit: Visit; dying: boolean; reason?: string; }
+interface Person {
+  spr: Phaser.GameObjects.Image; shadow: Phaser.GameObjects.Image; px: number; py: number; path: { x: number; y: number }[]; tgt: string;
+  visit?: Visit; dying: boolean; reason?: string; speed: number; bob: number; staff?: { dept: Dept; timer: number };
+}
+const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 
 export class HospitalScene extends Phaser.Scene {
   private ctl!: Controller;
-  private player!: Phaser.Physics.Arcade.Sprite;
+  private tiles!: Tile[][];
+  private people = new Map<string, Person>();
+  private staff: Person[] = [];
+  private player!: Person; private pg = { x: 16.5, y: 20.4 };
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private keys!: Record<string, Phaser.Input.Keyboard.Key>;
-  private sprites = new Map<string, PSprite>();
   private prompt!: Phaser.GameObjects.Text;
-  private beds!: Phaser.GameObjects.Graphics;
-  private overflow: Record<PlayableService, Phaser.GameObjects.Text> = {} as never;
-  private lastBedSig = '';
-  private reconTimer = 0;
-  private spawnAcc = 0;
+  private beds: Record<Dept, Phaser.GameObjects.Image[]> = { emergency: [], inpatient: [], outpatient: [] };
+  private slotOf = new Map<string, number>();
+  private wardSign!: Phaser.GameObjects.Text;
+  private overflow: Partial<Record<Dept, Phaser.GameObjects.Text>> = {};
+  private ring!: Phaser.GameObjects.Graphics;
+  private reconTimer = 0; private staffSig = '';
+  private t = 0; private interactQueued = false;
 
   constructor() { super('Hospital'); }
 
   create() {
     this.ctl = this.registry.get('ctl') as Controller;
-    this.makeTextures(); this.drawMap();
-    const walls = this.physics.add.staticGroup();
-    WALLS.forEach(([x, y, w, h]) => { const r = this.add.rectangle(x + w / 2, y + h / 2, w, h, 0x334155); this.physics.add.existing(r, true); walls.add(r); });
-    this.beds = this.add.graphics().setDepth(2);
-    this.player = this.physics.add.sprite(176, 440, 'admin').setDepth(100).setCollideWorldBounds(true);
-    (this.player.body as Phaser.Physics.Arcade.Body).setSize(12, 12).setOffset(2, 12);
-    this.physics.add.collider(this.player, walls);
+    makeTextures(this);
+    const { tiles, props } = buildMap(); this.tiles = tiles;
+    // floors & walls
+    for (let y = 0; y < GH; y++) for (let x = 0; x < GW; x++) {
+      const t = tiles[y][x], p = proj(x + 0.5, y + 0.5);
+      if (t.kind === 'wall') { const h = WALL_H[t.wall!]; this.add.image(p.x, p.y, `wall_${t.wall}`).setOrigin(0.5, boxOrigin(h)).setDepth(depthOf(x + 0.5, y + 0.5)); continue; }
+      const fk = t.kind === 'tree' || t.kind === 'hedge' || t.kind === 'fountain' ? 'grass' : t.kind;
+      this.add.image(p.x, p.y, `f_${fk}_${(x + y) % 2}`).setDepth(0);
+    }
+    props.forEach((pr) => {
+      const p = proj(pr.x + 0.5, pr.y + 0.5), o = CUSTOM_ORIGIN[pr.tex] ?? [0.5, boxOrigin(BOX_H[pr.tex] ?? 0)];
+      this.add.image(p.x, p.y + (pr.dy ?? 0), pr.tex).setOrigin(o[0], o[1]).setDepth(depthOf(pr.x + 0.5, pr.y + 0.5, pr.tex === 'monitor' ? 5 : pr.tex === 'flowers' ? -50 : 0));
+    });
+    Object.values(ROOMS).forEach((r) => { const p = proj(r.x0 + 1.2, r.y0 + 0.9); this.add.text(p.x, p.y, r.label, { fontFamily: 'monospace', fontSize: '14px', color: '#0f172a', backgroundColor: '#ffffffcc', padding: { x: 3, y: 1 } }).setResolution(2).setOrigin(0.5).setDepth(9e5); });
+    const e = proj(ENTRANCE.x + 0.5, ENTRANCE.y + 0.5); this.add.text(e.x, e.y - 40, '▼ ENTRANCE', { fontFamily: 'monospace', fontSize: '14px', color: '#fff', backgroundColor: '#15803dcc', padding: { x: 4, y: 2 } }).setResolution(2).setOrigin(0.5).setDepth(9e5);
+    const w = proj(25, 8); this.wardSign = this.add.text(w.x, w.y, '', { fontFamily: 'monospace', fontSize: '14px', color: '#fef3c7', backgroundColor: '#7c2d12dd', padding: { x: 5, y: 3 }, align: 'center' }).setResolution(2).setOrigin(0.5).setDepth(9e5);
+    DEPTS.forEach((d) => { const s = queueSpots(d)[QUEUE_CAP - 1], p = proj(s.x + 0.5, s.y + 1.2); this.overflow[d] = this.add.text(p.x, p.y, '', { fontFamily: 'monospace', fontSize: '13px', color: '#7f1d1d', backgroundColor: '#fee2e2cc', padding: { x: 3, y: 1 } }).setResolution(2).setOrigin(0.5).setDepth(9e5); });
+    this.ring = this.add.graphics().setDepth(8e5);
+    this.player = this.makePerson('admin', this.pg.x, this.pg.y);
+    this.prompt = this.add.text(0, 0, '', { fontFamily: 'monospace', fontSize: '15px', color: '#fff', backgroundColor: '#0f172aee', padding: { x: 5, y: 3 } }).setResolution(2).setDepth(9.5e5).setVisible(false);
+    const cam = this.cameras.main; cam.setBounds(0, 0, WORLD_W, WORLD_H); cam.setZoom(0.72); cam.startFollow(this.player.spr, true, 0.12, 0.12);
+    this.input.on('wheel', (_p: unknown, _o: unknown, _dx: number, dy: number) => cam.setZoom(clamp(cam.zoom - dy * 0.001, 0.55, 1.6)));
+    this.input.on('pointerdown', (_p: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[]) => {
+      const hit = over.find((o) => o.getData('vid')); if (hit) this.ctl.select(this.people.get(hit.getData('vid'))?.visit ?? null); else if (!over.length) this.ctl.select(null);
+    });
     this.cursors = this.input.keyboard!.createCursorKeys();
-    this.keys = this.input.keyboard!.addKeys('W,A,S,D,E,SPACE') as Record<string, Phaser.Input.Keyboard.Key>;
-    this.prompt = this.add.text(0, 0, '', { fontFamily: 'monospace', fontSize: '12px', color: '#fff', backgroundColor: '#0f172aee', padding: { x: 5, y: 3 } }).setDepth(200).setVisible(false);
-    (['emergency', 'outpatient'] as PlayableService[]).forEach((s) => { this.overflow[s] = this.add.text(SPOTS[s].queue(0).x - 40, SPOTS[s].queue(0).y + (s === 'emergency' ? 70 : -70), '', { fontFamily: 'monospace', fontSize: '11px', color: '#fca5a5' }).setDepth(50); });
-    this.input.on('pointerdown', (p: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[]) => {
-      const hit = over.find((o) => o.getData('vid')); if (hit) this.ctl.select(this.sprites.get(hit.getData('vid'))?.visit ?? null); else if (!over.length) this.ctl.select(null);
-    });
-    this.events.once('shutdown', () => this.sprites.clear());
+    this.keys = this.input.keyboard!.addKeys('W,A,S,D,E,SPACE,M') as Record<string, Phaser.Input.Keyboard.Key>;
+    // tap-style keys are event driven so very short key presses are never missed between frames
+    this.input.keyboard!.on('keydown-E', () => { this.interactQueued = true; });
+    this.input.keyboard!.on('keydown-SPACE', () => this.ctl.togglePause());
+    this.input.keyboard!.on('keydown-M', () => this.ctl.toggleMute());
+    this.events.once('shutdown', () => { this.people.clear(); this.staff = []; });
   }
 
-  private makeTextures() {
-    const g = this.make.graphics({ x: 0, y: 0 }, false);
-    Object.entries(PAYER_COLORS).forEach(([k, c]) => {
-      g.clear(); g.fillStyle(0xf1c9a5).fillRect(3, 0, 6, 6); g.fillStyle(c).fillRect(2, 6, 8, 10); g.fillStyle(0x1f2937).fillRect(3, 16, 2, 4).fillRect(7, 16, 2, 4);
-      g.generateTexture(`p_${k}`, 12, 20);
-    });
-    g.clear(); g.fillStyle(0xf1c9a5).fillRect(4, 0, 6, 6); g.fillStyle(0x0f766e).fillRect(2, 6, 10, 10); g.fillStyle(0xfacc15).fillRect(9, 8, 3, 3); g.fillStyle(0x1f2937).fillRect(4, 16, 2, 6).fillRect(8, 16, 2, 6);
-    g.generateTexture('admin', 14, 22); g.destroy();
+  // ---------- people ----------
+  private makePerson(tex: string, gx: number, gy: number): Person {
+    const spr = this.add.image(0, 0, tex).setOrigin(0.5, 0.92).setScale(1.5), shadow = this.add.image(0, 0, 'shadow').setScale(1.5);
+    const p: Person = { spr, shadow, px: gx, py: gy, path: [], tgt: '', dying: false, speed: 2.4, bob: Math.random() * 6 };
+    this.place(p); return p;
   }
-
-  private drawMap() {
-    const g = this.add.graphics().setDepth(0);
-    g.fillStyle(0x0b1220).fillRect(0, 0, W, H);
-    const room = (x: number, y: number, w: number, h: number, a: number, b: number) => { for (let ty = 0; ty < h; ty += 16) for (let tx = 0; tx < w; tx += 16) { g.fillStyle(((tx + ty) / 16) % 2 ? a : b).fillRect(x + tx, y + ty, 16, 16); } };
-    room(12, 12, 324, 388, 0xcfe3ea, 0xc3d9e2);      // waiting hall
-    room(12, 408, 324, H - 420, 0xe9dcc3, 0xe2d4b8);  // admin office
-    room(344, 12, 316, 254, 0xd7f0e5, 0xcdeadc);      // ER
-    room(344, 274, 316, H - 286, 0xdbe8f9, 0xd1e0f4); // clinic
-    room(668, 12, W - 680, H - 24, 0x3b4252, 0x373d4b); // locked ward
-    const t = (x: number, y: number, s: string, c = '#0f172a') => this.add.text(x, y, s, { fontFamily: 'monospace', fontSize: '11px', color: c }).setDepth(3);
-    t(20, 18, 'RECEPTION / WAITING'); t(352, 18, 'EMERGENCY DEPT'); t(352, 280, 'OUTPATIENT CLINIC'); t(20, 414, 'ADMIN OFFICE');
-    t(690, 220, 'INPATIENT WARD', '#94a3b8'); t(690, 238, '(locked: needs HC-254D', '#94a3b8'); t(690, 252, 'bed-stay calibration)', '#94a3b8');
-    t(ENTRANCE.x - 2, 160, 'ENTRANCE', '#475569');
-    // props
-    g.fillStyle(0x7c5a3a).fillRect(136, 456, 80, 26);             // admin desk
-    g.fillStyle(0x38bdf8).fillRect(166, 458, 20, 10);             // monitor
-    g.fillStyle(0x1e293b).fillRect(110, 44, 80, 40); g.fillStyle(0x22d3ee).fillRect(114, 48, 72, 32); // reception board
-    g.fillStyle(0x475569).fillRect(352, 188, 18, 26).fillRect(352, 448, 18, 26);                      // consoles
-    g.fillStyle(0xfacc15).fillRect(176, 400, 0, 0);
+  private place(p: Person) {
+    const s = proj(p.px, p.py), moving = p.path.length > 0, bob = moving ? Math.abs(Math.sin(this.t * 9 + p.bob)) * 2 : 0;
+    p.spr.setPosition(Math.round(s.x), Math.round(s.y - bob)).setDepth(depthOf(p.px, p.py, 50)); p.shadow.setPosition(Math.round(s.x), Math.round(s.y + 1)).setDepth(depthOf(p.px, p.py, 49));
   }
-
-  private drawBeds() {
-    const s = this.ctl.sim.state, sig = `${s.departments.emergency.roomSlots}|${s.departments.outpatient.roomSlots}|${s.departments.emergency.nurses}|${s.departments.emergency.physicians}|${s.departments.outpatient.nurses}|${s.departments.outpatient.physicians}`;
-    if (sig === this.lastBedSig) return; this.lastBedSig = sig;
-    const g = this.beds; g.clear();
-    (['emergency', 'outpatient'] as PlayableService[]).forEach((svc) => {
-      const d = s.departments[svc];
-      for (let i = 0; i < d.roomSlots; i++) { const p = SPOTS[svc].bed(i); g.fillStyle(0xffffff).fillRect(p.x - 16, p.y - 8, 32, 20); g.fillStyle(svc === 'emergency' ? 0xf87171 : 0x60a5fa).fillRect(p.x - 16, p.y - 8, 32, 5); }
-      // staff dots (1 dot per employee, capped) make hiring visible
-      const base = SPOTS[svc].label; let n = 0;
-      for (let i = 0; i < Math.min(d.physicians, 24); i++, n++) { g.fillStyle(0xffffff).fillRect(base.x + 130 + (n % 12) * 9, base.y - 4 + Math.floor(n / 12) * 10, 7, 7); g.fillStyle(0x0f766e).fillRect(base.x + 132 + (n % 12) * 9, base.y - 2 + Math.floor(n / 12) * 10, 3, 3); }
-      for (let i = 0; i < Math.min(d.nurses, 24); i++, n++) { g.fillStyle(0x2563eb).fillRect(base.x + 130 + (n % 12) * 9, base.y - 4 + Math.floor(n / 12) * 10, 7, 7); }
-    });
+  private goTo(p: Person, tx: number, ty: number) {
+    const k = `${tx},${ty}`; if (p.tgt === k) return; p.tgt = k;
+    const here = { x: clamp(Math.floor(p.px), 0, GW - 1), y: clamp(Math.floor(p.py), 0, GH - 1) };
+    p.path = findPath(this.tiles, here, { x: tx, y: ty });
+    if (!p.path.length && (here.x !== tx || here.y !== ty)) { p.px = tx + 0.5; p.py = ty + 0.5; }
   }
+  private destroyPerson(p: Person) { p.spr.destroy(); p.shadow.destroy(); }
 
+  // ---------- main loop ----------
   update(_t: number, dtMs: number) {
-    const dt = dtMs / 1000;
-    // player movement
-    const body = this.player.body as Phaser.Physics.Arcade.Body;
+    const dt = Math.min(dtMs, 100) / 1000; this.t += dt;
+    this.movePlayer(dt);
+    // interactions
+    const near = INTERACT.find((o) => Math.hypot(this.pg.x - (o.x + 0.5), this.pg.y - (o.y + 0.5)) < 1.9);
+    if (near) { const s = proj(this.pg.x, this.pg.y); this.prompt.setText(`E: ${near.label}`).setPosition(s.x - 70, s.y - 60).setVisible(true); if (this.interactQueued) { sfx.ui(); this.ctl.openTab(near.tab); } }
+    else this.prompt.setVisible(false);
+    this.interactQueued = false;
+    // outcome events -> popups / sounds
+    const ev = this.ctl.events.splice(0, this.ctl.events.length);
+    ev.forEach((e) => {
+      const p = this.people.get(e.visit.id);
+      if (e.type === 'leave') { if (p) p.reason = e.reason; sfx.leave(); }
+      else if (e.type === 'complete') {
+        sfx.paid();
+        if (p && e.revenueCents > 0) { const s = proj(p.px, p.py); const tx = this.add.text(s.x, s.y - 30, `+$${Math.round(e.revenueCents / 100).toLocaleString('en-US')}`, { fontFamily: 'monospace', fontSize: '15px', color: '#bbf7d0', stroke: '#052e16', strokeThickness: 3 }).setResolution(2).setOrigin(0.5).setDepth(9.6e5);
+          this.tweens.add({ targets: tx, y: tx.y - 34, alpha: 0, duration: 1100, onComplete: () => tx.destroy() }); }
+      }
+    });
+    this.syncBeds(); this.reconTimer += dt;
+    if (this.reconTimer > 0.12) { this.reconTimer = 0; this.reconcile(); }
+    // walk everyone
+    const spd = Math.max(1, this.ctl.speed * 0.55) * (this.ctl.paused ? 0.6 : 1);
+    const step = (p: Person, mult = 1) => {
+      let budget = p.speed * spd * mult * dt;
+      while (p.path.length && budget > 0) {
+        const w = p.path[0], dx = w.x + 0.5 - p.px, dy = w.y + 0.5 - p.py, d = Math.hypot(dx, dy);
+        if (d <= budget) { p.px = w.x + 0.5; p.py = w.y + 0.5; p.path.shift(); budget -= d; } else { p.px += (dx / d) * budget; p.py += (dy / d) * budget; budget = 0; }
+      }
+      this.place(p);
+    };
+    this.people.forEach((p, id) => {
+      step(p);
+      if (p.dying && !p.path.length) { this.destroyPerson(p); this.people.delete(id); }
+    });
+    this.staff.forEach((s) => {
+      step(s, 0.55); s.staff!.timer -= dt;
+      if (s.staff!.timer <= 0 && !s.path.length) {
+        s.staff!.timer = 2 + Math.random() * 6; const r = ROOMS[ROOM_OF[s.staff!.dept]];
+        for (let tries = 0; tries < 12; tries++) { const x = Phaser.Math.Between(r.x0, r.x1), y = Phaser.Math.Between(r.y0, r.y1); if (walkable(this.tiles, x, y)) { this.goTo(s, x, y); break; } }
+      }
+    });
+    this.drawRing();
+    const open = this.ctl.sim.state.departments.inpatient.roomSlots > 0;
+    this.wardSign.setText(open ? '' : 'WARD CLOSED\nBuild beds & hire staff in Manage');
+    this.player.spr.setDepth(depthOf(this.pg.x, this.pg.y, 60));
+  }
+
+  private movePlayer(dt: number) {
     const L = this.cursors.left.isDown || this.keys.A.isDown, R = this.cursors.right.isDown || this.keys.D.isDown;
     const U = this.cursors.up.isDown || this.keys.W.isDown, D = this.cursors.down.isDown || this.keys.S.isDown;
-    body.setVelocity((R ? 1 : 0) - (L ? 1 : 0), (D ? 1 : 0) - (U ? 1 : 0)); if (body.velocity.lengthSq() > 0) body.velocity.normalize().scale(150);
-    if (Phaser.Input.Keyboard.JustDown(this.keys.SPACE)) this.ctl.togglePause();
-    // interactions
-    const near = INTERACTABLES.find((o) => Phaser.Math.Distance.Between(this.player.x, this.player.y, o.x, o.y) < o.r);
-    if (near) { this.prompt.setText(`E: ${near.label}`).setPosition(this.player.x - 60, this.player.y - 40).setVisible(true); if (Phaser.Input.Keyboard.JustDown(this.keys.E)) this.ctl.openTab(near.tab); }
-    else this.prompt.setVisible(false);
-    this.drawBeds();
-    // consume outcome events (colour of leaving patients)
-    const ev = this.ctl.events.splice(0, this.ctl.events.length);
-    ev.forEach((e) => { if (e.type === 'leave') { const p = this.sprites.get(e.visit.id); if (p) p.reason = e.reason; } });
-    this.reconTimer += dt; this.spawnAcc += dt;
-    if (this.reconTimer > 0.12) { this.reconTimer = 0; this.reconcile(); }
-    // move sprites toward targets
-    const speed = 150 * Math.max(1, this.ctl.speed * 0.7);
-    this.sprites.forEach((p, id) => {
-      const tgt = p.spr.getData('tx') !== undefined ? { x: p.spr.getData('tx') as number, y: p.spr.getData('ty') as number } : ENTRANCE;
-      const dx = tgt.x - p.spr.x, dy = tgt.y - p.spr.y, d = Math.hypot(dx, dy), step = speed * dt;
-      if (d <= step) { p.spr.setPosition(tgt.x, tgt.y); if (p.dying) { p.spr.destroy(); this.sprites.delete(id); } }
-      else p.spr.setPosition(p.spr.x + (dx / d) * step, p.spr.y + (dy / d) * step);
-      p.spr.setDepth(10 + p.spr.y / 10);
+    let vx = (R ? 1 : 0) - (L ? 1 : 0), vy = (D ? 1 : 0) - (U ? 1 : 0); const moving = vx !== 0 || vy !== 0;
+    if (moving) {
+      const n = Math.hypot(vx, vy); vx = (vx / n) * 150 * dt; vy = (vy / n) * 150 * dt;       // screen pixels this frame
+      const dgx = (vx / 32 + vy / 16) / 2, dgy = (vy / 16 - vx / 32) / 2, r = 0.22;
+      const ok = (x: number, y: number) => walkable(this.tiles, Math.floor(x - r), Math.floor(y - r)) && walkable(this.tiles, Math.floor(x + r), Math.floor(y - r)) && walkable(this.tiles, Math.floor(x - r), Math.floor(y + r)) && walkable(this.tiles, Math.floor(x + r), Math.floor(y + r));
+      if (ok(this.pg.x + dgx, this.pg.y)) this.pg.x += dgx;
+      if (ok(this.pg.x, this.pg.y + dgy)) this.pg.y += dgy;
+    }
+    this.player.px = this.pg.x; this.player.py = this.pg.y; this.player.path = moving ? [{ x: 0, y: 0 }] : [];
+    this.place(this.player); this.player.path = [];
+  }
+
+  private drawRing() {
+    this.ring.clear(); const sel = this.ctl.selected; if (!sel) return;
+    const p = this.people.get(sel.id); if (!p) return; const s = proj(p.px, p.py);
+    this.ring.lineStyle(3, 0xfacc15, 1).strokeEllipse(s.x, s.y, 34, 17);
+  }
+
+  private syncBeds() {
+    DEPTS.forEach((d) => {
+      const n = this.ctl.sim.state.departments[d].roomSlots, arr = this.beds[d];
+      for (let i = arr.length; i < n; i++) { const t = bedTile(d, i), p = proj(t.x + 0.5, t.y + 0.5); arr.push(this.add.image(p.x, p.y, `bed_${d}`).setOrigin(0.5, boxOrigin(BED_H[d])).setDepth(depthOf(t.x + 0.5, t.y + 0.5, -5))); }
+      while (arr.length > n) arr.pop()!.destroy();
     });
   }
 
-  /** Make the displayed patients mirror the simulation's queues and in-service lists (capped sample). */
+  /** Make displayed people mirror the simulation: queues in the corridor, in-service patients in beds, staff roaming their rooms. */
   private reconcile() {
-    const live = new Set<string>(); const sel = this.ctl.selected?.id;
-    (['emergency', 'outpatient'] as PlayableService[]).forEach((svc) => {
-      const d = this.ctl.sim.state.departments[svc];
-      d.inService.forEach((av, i) => this.place(av.visit, SPOTS[svc].bed(i % Math.max(1, d.roomSlots)), live, true));
-      d.queue.slice(0, QUEUE_CAP).forEach((v, i) => this.place(v, SPOTS[svc].queue(i), live, false));
-      const extra = d.queue.length - QUEUE_CAP;
-      this.overflow[svc].setText(extra > 0 ? `+${extra} more waiting (sampled view)` : '');
+    const s = this.ctl.sim.state, live = new Set<string>(); const sel = this.ctl.selected?.id;
+    DEPTS.forEach((svc) => {
+      const d = s.departments[svc], spots = queueSpots(svc), used = new Set<number>();
+      d.inService.forEach((a) => { const sl = this.slotOf.get(a.visit.id); if (sl !== undefined) used.add(sl); });
+      d.inService.forEach((a) => {
+        let sl = this.slotOf.get(a.visit.id);
+        if (sl === undefined) { sl = 0; while (used.has(sl)) sl++; if (d.roomSlots > 0) sl %= d.roomSlots; used.add(sl); this.slotOf.set(a.visit.id, sl); }
+        const t = bedTile(svc, sl); this.show(a.visit, t.x, t.y, live, svc, false);
+      });
+      d.queue.slice(0, QUEUE_CAP).forEach((v, i) => this.show(v, spots[i].x, spots[i].y, live, svc, true));
+      const extra = d.queue.length - QUEUE_CAP; this.overflow[svc]!.setText(extra > 0 ? `+${extra} more waiting` : '');
     });
-    this.sprites.forEach((p) => {
-      if (!live.has(p.visit.id) && !p.dying) { p.dying = true; p.spr.setData('tx', ENTRANCE.x); p.spr.setData('ty', ENTRANCE.y); p.spr.setTint(p.reason ? 0xff6b6b : 0xffffff); }
-      p.spr.setAlpha(p.visit.id === sel ? 1 : p.dying ? 0.75 : 0.95);
+    this.people.forEach((p, id) => {
+      if (!live.has(id) && !p.dying) { p.dying = true; this.slotOf.delete(id); p.tgt = ''; this.goTo(p, SPAWN.x, SPAWN.y); p.spr.setTint(p.reason ? 0xff6b6b : 0xffffff); if (!p.path.length) p.path = [{ x: SPAWN.x, y: SPAWN.y }]; }
+      p.spr.setAlpha(id === sel ? 1 : p.dying ? 0.8 : 1);
     });
-  }
-  private place(v: Visit, pos: { x: number; y: number }, live: Set<string>, inBed: boolean) {
-    live.add(v.id);
-    let p = this.sprites.get(v.id);
-    if (!p) {
-      const spr = this.add.image(ENTRANCE.x, ENTRANCE.y, `p_${v.patient.payer as PayerGroup}`).setInteractive({ useHandCursor: true }).setData('vid', v.id);
-      p = { spr, visit: v, dying: false }; this.sprites.set(v.id, p);
+    // staff sprites: one per employee up to a cap, so hiring is visible
+    const sig = DEPTS.map((d) => `${s.departments[d].physicians}/${s.departments[d].nurses}`).join('|');
+    if (sig !== this.staffSig) {
+      this.staffSig = sig; this.staff.forEach((p) => this.destroyPerson(p)); this.staff = [];
+      DEPTS.forEach((d) => { const r = ROOMS[ROOM_OF[d]], dep = s.departments[d];
+        const mk = (tex: string, n: number) => { for (let i = 0; i < Math.min(n, 6); i++) { const x = Phaser.Math.Between(r.x0, r.x1), y = Phaser.Math.Between(r.y0, r.y1); if (!walkable(this.tiles, x, y)) continue; const p = this.makePerson(tex, x + 0.5, y + 0.5); p.staff = { dept: d, timer: Math.random() * 4 }; this.staff.push(p); } };
+        mk('doctor', dep.physicians); mk('nurse', dep.nurses); });
     }
-    p.spr.setData('tx', pos.x).setData('ty', pos.y + (inBed ? 6 : 0));
+  }
+
+  private show(v: Visit, tx: number, ty: number, live: Set<string>, svc: Dept, waiting: boolean) {
+    live.add(v.id); let p = this.people.get(v.id);
+    if (!p) {
+      const fresh = v.arrivalTick >= this.ctl.sim.state.tick - 8;
+      const from = fresh ? SPAWN : waiting ? { x: tx, y: ty } : { x: DOORS[ROOM_OF[svc]].x, y: DOORS[ROOM_OF[svc]].y };
+      p = this.makePerson(`p_${v.patient.payer}`, from.x + 0.5, from.y + 0.5); p.visit = v; p.spr.setInteractive({ useHandCursor: true }).setData('vid', v.id); this.people.set(v.id, p);
+    }
+    this.goTo(p, tx, ty);
   }
 }
+void unproj; void OX;

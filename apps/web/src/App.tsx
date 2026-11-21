@@ -6,13 +6,15 @@ import { ManagePanel } from './components/ManagePanel';
 import { DataInsightsPanel } from './components/DataInsightsPanel';
 import { AssumptionsPanel } from './components/AssumptionsPanel';
 import { YearEndReport } from './components/YearEndReport';
+import { BriefingModal } from './components/BriefingModal';
 import { Onboarding } from './components/Onboarding';
 
-const TABS = [['manage', 'Manage'], ['data', 'Data'], ['about', 'Assumptions & About']] as const;
+const TABS = [['manage', 'Manage'], ['data', 'MEPS Lab'], ['about', 'Assumptions & About']] as const;
 
 export default function App() {
   const ctl = useMemo(() => new Controller(2024), []);
   useSyncExternalStore(ctl.subscribe, ctl.getVersion);
+  if (import.meta.env.DEV) (window as unknown as { __ctl: Controller }).__ctl = ctl;
   const [tab, setTab] = useState<string>('manage');
   const [intro, setIntro] = useState(true);
   useEffect(() => { ctl.start(); return () => ctl.stop(); }, [ctl]);
@@ -33,6 +35,7 @@ export default function App() {
       </main>
       <footer className="ticker" aria-live="polite">{warn > 0 && <b className="warn-chip">⚠ ER overloaded: {warn} transferred/left unseen this year</b>}{ctl.messages.slice(0, 3).map((m, i) => <span key={i}>{m}</span>)}</footer>
       {intro && <Onboarding ctl={ctl} onClose={() => setIntro(false)} />}
+      {!intro && ctl.briefing && !ctl.report && <BriefingModal ctl={ctl} />}
       {!intro && ctl.report && <YearEndReport ctl={ctl} />}
     </div>
   );

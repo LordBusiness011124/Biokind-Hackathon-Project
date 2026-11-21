@@ -1,5 +1,7 @@
-import { Simulation, makeDemoAsset, validateAsset, deserialize, serialize, END_YEAR, type Action, type ActionResult, type AnnualSnapshot, type ModelAsset, type SimEvent, type Visit } from '@hospital/sim';
+import { audio, sfx } from './audio';
+import { buildQuestions, replay, summarize, Simulation, type Question, makeDemoAsset, validateAsset, deserialize, serialize, END_YEAR, type Action, type ActionResult, type AnnualSnapshot, type ModelAsset, type SimEvent, type Visit } from '@hospital/sim';
 
+export type { };
 const SAVE_KEY = 'ht2044-save-v1';
 const files = import.meta.glob('../../../packages/model-assets/derived/meps_baseline.json', { eager: true, import: 'default' }) as Record<string, unknown>;
 
@@ -12,9 +14,13 @@ export function loadAsset(): { asset: ModelAsset; error?: string } {
 
 /** Headless no-intervention branch with the same seed (decisions are the only difference). */
 export function runControl(asset: ModelAsset, seed: number, years: number): AnnualSnapshot[] {
-  const c = Simulation.create(asset, seed, undefined, 'control');
-  while (!c.state.finished && !c.state.bankrupt && c.state.snapshots.length < years) c.runToYearEnd();
-  return c.state.snapshots;
+  return replay(asset, seed, [], years, undefined, 'control').state.snapshots;
+}
+/** Re-run the player's decisions under other seeds, yielding to the UI between runs. */
+export async function runBands(asset: ModelAsset, log: Controller['sim']['state']['actionLog'], years: number, n = 20, onProgress?: (i: number) => void) {
+  const runs: Simulation[] = [];
+  for (let i = 0; i < n; i++) { await new Promise((r) => setTimeout(r, 0)); runs.push(replay(asset, 1000 + i, log, years)); onProgress?.(i + 1); }
+  return summarize(runs);
 }
 
 type Listener = () => void;
@@ -23,6 +29,10 @@ const TICKS_PER_SECOND_AT_1X = 2; // 1 tick = 1 simulated hour
 
 export class Controller {
   sim: Simulation; asset: ModelAsset; assetError?: string;
+  muted = false;
+  briefing: { year: number; questions: Question[]; picked: (number | null)[] } | null = null;
+  literacy = { asked: 0, correct: 0, grantsCents: 0 };
+  private autoplayAfterBriefing = false;
   paused = true; speed: (typeof SPEEDS)[number] = 1;
   report: AnnualSnapshot | null = null;   // year-end overlay
   selected: Visit | null = null;
@@ -48,7 +58,7 @@ export class Controller {
   stop() { cancelAnimationFrame(this.raf); }
   private frame(t: number) {
     const dt = Math.min(0.25, (t - this.last) / 1000); this.last = t;
-    if (!this.paused && !this.report && !this.sim.state.finished && !this.sim.state.bankrupt) {
+    if (!this.paused && !this.report && !this.briefing && !this.sim.state.finished && !this.sim.state.bankrupt) {
       this.acc += dt * TICKS_PER_SECOND_AT_1X * this.speed;
       const n = Math.floor(this.acc);
       if (n > 0) { this.acc -= n; this.run(n); }
@@ -62,15 +72,34 @@ export class Controller {
     if (this.sim.state.bankrupt) { this.paused = true; this.say('The hospital has gone bankrupt (cash negative for over 60 days).'); this.report = this.sim.state.snapshots.at(-1) ?? null; }
   }
   private log(e: SimEvent) {
-    if (e.type === 'leave') this.say(`${e.visit.service === 'emergency' ? 'ER over capacity: patient transferred/left unseen' : 'Clinic backlog: patient left unseen'} (${e.visit.patient.payer})`);
+    if (e.type !== 'leave') return;
+    const v = e.visit, py = v.patient.payer;
+    this.say(v.service === 'emergency' ? `ER over capacity: patient transferred/left unseen (${py})`
+      : v.service === 'inpatient' ? `No ward capacity: admission transferred elsewhere (${py})` : `Clinic backlog: patient left unseen (${py})`);
   }
   private onYearClosed() {
-    this.paused = true; this.report = this.sim.state.snapshots.at(-1)!; this.save();
+    this.paused = true; this.report = this.sim.state.snapshots.at(-1)!; this.save(); sfx.year();
     this.say(`Year ${this.report.year} closed: net ${(this.report.netCents / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })}`);
   }
 
   // ---- player-facing API ----
-  togglePause() { if (!this.report) this.paused = !this.paused; this.emit(); }
+  toggleMute() { audio.muted = this.muted = !this.muted; this.emit(); }
+  /** Yearly MEPS briefing: predict a real statistic, see the answer with its CI and source, earn a small grant if right. */
+  openBriefing(autoplay = false) {
+    const st = this.sim.state; if (st.finished || st.bankrupt) return;
+    const questions = buildQuestions(this.asset, st.year, 2, st.snapshots.at(-1));
+    this.autoplayAfterBriefing = autoplay;
+    if (!questions.length) { if (autoplay) this.setSpeed(1); return; }
+    this.paused = true; this.briefing = { year: st.year, questions, picked: questions.map(() => null) }; this.emit();
+  }
+  answer(qi: number, choice: number) {
+    const b = this.briefing; if (!b || b.picked[qi] !== null) return; b.picked[qi] = choice;
+    const q = b.questions[qi], ok = choice === q.answerIndex; this.literacy.asked++;
+    if (ok) { this.literacy.correct++; if (this.act({ type: 'grant', cents: 2_500_000, reason: `${b.year}:${q.id}` }).ok) { this.literacy.grantsCents += 2_500_000; sfx.paid(); } } else sfx.leave();
+    this.emit();
+  }
+  closeBriefing() { this.briefing = null; if (this.autoplayAfterBriefing) { this.autoplayAfterBriefing = false; this.setSpeed(1); } this.emit(); }
+  togglePause() { if (!this.report && !this.briefing) this.paused = !this.paused; this.emit(); }
   setSpeed(s: (typeof SPEEDS)[number]) { this.speed = s; this.paused = false; this.emit(); }
   act(a: Action): ActionResult { const r = this.sim.applyAction(a); if (!r.ok) this.say(`Action failed: ${r.error}`); this.emit(); return r; }
   simToYearEnd() { const y = this.sim.state.year; this.paused = true; this.events = [];
@@ -78,12 +107,12 @@ export class Controller {
   simTo2044() { this.paused = true; this.events = []; this.sim.runToEnd(); this.report = this.sim.state.snapshots.at(-1) ?? null; this.save(); this.emit(); }
   dismissReport() {
     if (this.sim.state.finished || this.sim.state.bankrupt) return; // end state stays
-    this.report = null; this.emit();
+    this.report = null; this.openBriefing(); this.emit();
   }
   get gameOver() { return this.sim.state.finished || this.sim.state.bankrupt; }
   select(v: Visit | null) { this.selected = v; this.emit(); }
   openTab(tab: string) { this.focusTab = tab; this.tabNonce++; this.emit(); }
-  restart(seed?: number) { this.sim = Simulation.create(this.asset, seed ?? this.sim.state.config.seed); this.report = null; this.paused = true; this.events = []; this.messages = []; this.say('New game.'); this.emit(); }
+  restart(seed?: number) { this.literacy = { asked: 0, correct: 0, grantsCents: 0 }; this.briefing = null; this.sim = Simulation.create(this.asset, seed ?? this.sim.state.config.seed); this.report = null; this.paused = true; this.events = []; this.messages = []; this.say('New game.'); this.emit(); }
 
   save() { try { localStorage.setItem(SAVE_KEY, serialize(this.sim.state)); } catch { /* storage unavailable */ } }
   hasSave(): boolean { try { return !!localStorage.getItem(SAVE_KEY); } catch { return false; } }

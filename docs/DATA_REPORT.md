@@ -34,6 +34,14 @@ Model version `meps2024-v1` · provenance `MEPS_CALIBRATED` · 18683 persons wit
 - inpatient per person-year: 0.084 ± 0.006
 - outpatient per person-year: 1.000 ± 0.090
 
+## Spending concentration (TOTEXP24)
+
+- top1: 22.4% of total expenditure
+- top10: 65.6% of total expenditure
+- top5: 49.6% of total expenditure
+- top50: 97.2% of total expenditure
+- persons with zero expenditure: 14.5%; mean $8,347, median $1,700
+
 ## Event vs person file reconciliation
 
 - emergency: ratio 1.000; facility payments $77.0B; physician payments $18.8B; person-file service expenditure $95.8B
@@ -48,6 +56,7 @@ Model version `meps2024-v1` · provenance `MEPS_CALIBRATED` · 18683 persons wit
 - outpatient: 22150 events raw -> 21956 after weight>0 + person join (no duplication)
 - inpatient: 1912 events raw -> 1881 after weight>0 + person join (no duplication)
 - design-based SEs computed (strata/PSU)
+- insights computed (rates/expenditure by age, payer, income with design-based SEs; spending concentration)
 
 ## Result
 

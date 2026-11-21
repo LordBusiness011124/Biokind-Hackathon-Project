@@ -1,6 +1,6 @@
-# Progress
-- [x] T02 Data acquisition (HC-256, 254D/E/F downloaded, hashed, manifest) · [x] T03 weighted baseline · [x] T04 event calibration (ER, OP, IP payments; reconciliation)
-- [x] T05 deterministic kernel (15 tests) · [x] T06 map linked to sim (reconciled each frame) · [x] T07 decisions (hire/fire, rooms, process level, assistance fund)
-- [x] T08 21-snapshot run, year-end/final report, control comparison, save/export/import
-- [~] T09 accessibility: keyboard, aria labels, onboarding done; not audited on mobile.
-- TODO: design-based variance (VARSTR/VARPSU), inpatient ward, multi-seed percentile bands, balance pass, art/sound, code-split bundle (1.7MB).
+# Progress (all planned work complete)
+- Data: HC-256, HC-254D/E/F downloaded, hashed, validated (13 checks). Weighted cells, payer-specific event payments, nights, design-based SEs (VARSTR/VARPSU), spending concentration, group-level insights.
+- Simulation: deterministic, integer cents, ER + outpatient + inpatient ward, penalties for diversions, grants, replay engine (control branch + 20-seed bands), 24 tests incl. 21-year run.
+- Teaching: yearly MEPS briefing quiz (generated from data), Data Coach, MEPS Lab explorer, patient-mix-vs-MEPS report.
+- Game: isometric procedural pixel art, pathfinding staff/patients, sound, save/load/export, responsive layout, lazy-loaded Phaser.
+- Known limits: single-year cross-section (2044 is a scenario); catchment/hospital share/costs are assumptions; payments are not hospital revenue; single-PSU strata skipped in variance.

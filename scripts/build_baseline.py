@@ -88,6 +88,36 @@ def build_payments(p, log):
         out[svc] = {"pooled": pooled, "byPayer": by}
     return out, recon
 
+def build_insights(p, log):
+    """Teaching statistics with design-based SEs (domain estimates via ratio linearisation on the full sample)."""
+    rate_cols = {"emergency": "ERTOT24", "outpatient": "OPTOTV24", "inpatient": "IPDIS24"}
+    dims = {"ageBand": ("age_band", [a for a, _, _ in AGE_BANDS]), "payer": ("payer", PAYERS),
+            "incomeBand": ("income_band", ["<200%FPL", "200-399%FPL", "400%+FPL"])}
+    by = {}
+    for dim, (col, groups) in dims.items():
+        by[dim] = {}
+        for g in groups:
+            ind = (p[col] == g).values.astype(float)
+            n = int(ind.sum())
+            row = {"n": n, "weightedShare": float((p.PERWT24F * ind).sum() / p.PERWT24F.sum()), "sparse": n < MIN_CELL_N}
+            for svc, c in rate_cols.items():
+                est, se = ratio_se(p, p[c].values.astype(float) * ind, ind)
+                row[svc] = {"est": est, "se": se}
+            est, se = ratio_se(p, p["TOTEXP24"].values.astype(float) * ind, ind)
+            row["totalExpenditureUSD"] = {"est": est, "se": se}
+            est, se = ratio_se(p, (p.ERTOT24.values > 0).astype(float) * ind, ind)
+            row["anyErVisit"] = {"est": est, "se": se}
+            by[dim][g] = row
+    # spending concentration: share of weighted total expenditure held by the top x% of the weighted population
+    o = p.sort_values("TOTEXP24", ascending=False); cw = o.PERWT24F.cumsum() / o.PERWT24F.sum(); tot = float((o.TOTEXP24 * o.PERWT24F).sum())
+    conc = {f"top{int(q*100)}": float((o.TOTEXP24[cw <= q] * o.PERWT24F[cw <= q]).sum() / tot) for q in (0.01, 0.05, 0.10, 0.50)}
+    zero_share = float(p.loc[p.TOTEXP24 == 0, "PERWT24F"].sum() / p.PERWT24F.sum())
+    mean_exp = wmean(p.TOTEXP24.values, p.PERWT24F.values); med_exp = wquantiles(p.TOTEXP24.values.astype(float), p.PERWT24F.values, [0.5])[0]
+    log.append("insights computed (rates/expenditure by age, payer, income with design-based SEs; spending concentration)")
+    return {"ratesAndSpendingByGroup": by, "spendingConcentration": conc, "zeroExpenditureShare": zero_share,
+            "meanTotalExpenditureUSD": mean_exp, "medianTotalExpenditureUSD": med_exp,
+            "note": "TOTEXP24 = total health care expenditure from all sources (not hospital revenue). SEs: Taylor linearisation, strata/PSU."}
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--output", default=str(DERIVED))
@@ -121,7 +151,7 @@ def main():
             "paymentVariables": EVENT_PAY, "weight": "PERWT24F", "personKey": "DUPERSID (not exported)",
             "minCellN": MIN_CELL_N, "minPaymentN": MIN_PAY_N, "lowPaymentN": LOW_PAY_N,
             "caveat": "MEPS payments are expenditures by payment source, not hospital revenue, cost or profit."},
-        "designBased": design, "marginals": {"payerShare": payer_share, "ageShare": age_share, "overallRatesPerPersonYear": overall_rates},
+        "designBased": design, "insights": build_insights(p, log), "marginals": {"payerShare": payer_share, "ageShare": age_share, "overallRatesPerPersonYear": overall_rates},
         "cells": cells, "payments": payments, "reconciliation": recon, "buildLog": log,
     }
     out = Path(a.output); out.mkdir(parents=True, exist_ok=True)

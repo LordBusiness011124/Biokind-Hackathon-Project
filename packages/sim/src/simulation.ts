@@ -165,7 +165,7 @@ export class Simulation {
       case 'addRoom': {
         const cost = Math.round(a.costs.roomBuildCostCents[act.service] * idx(a.scenario.generalInflationPerYear, yrs(s)));
         if (s.cashCents < cost) return { ok: false, error: `Insufficient funds: need $${(cost / 100).toLocaleString()}.` };
-        if (s.departments[act.service].roomSlots >= 24) return { ok: false, error: 'Room limit reached.' };
+        if (s.departments[act.service].roomSlots >= 18) return { ok: false, error: 'Room limit reached.' };
         this.book('cost.capital', cost, `room:${act.service}`); s.departments[act.service].roomSlots += 1;
         log(`built ${act.service} room`); return { ok: true };
       }
@@ -177,6 +177,10 @@ export class Simulation {
         const cost = a.costs.processImprovementCostCents[L] - a.costs.processImprovementCostCents[s.processLevel];
         if (s.cashCents < cost) return { ok: false, error: `Insufficient funds: need $${(cost / 100).toLocaleString()}.` };
         this.book('cost.process', cost, `process:L${L}`); s.processLevel = L; log(`process improvement level ${L}`); return { ok: true };
+      }
+      case 'grant': { // data-literacy research grant (MODEL_ASSUMPTION), capped so it cannot be abused
+        if (!Number.isInteger(act.cents) || act.cents <= 0 || act.cents > 5_000_000) return { ok: false, error: 'Invalid grant.' };
+        this.book('revenue.grant', act.cents, `grant:${act.reason}`); return { ok: true };
       }
       case 'setSubsidy': {
         if (!Number.isInteger(act.budgetCents) || act.budgetCents < 0) return { ok: false, error: 'Invalid budget.' };
@@ -320,7 +324,7 @@ export class Simulation {
 
   private closeYear() {
     const s = this.state, acc = s.yearAcc;
-    const rev = s.ledger['revenue.emergency'] + s.ledger['revenue.outpatient'] + s.ledger['revenue.inpatient'];
+    const rev = LEDGER_CATEGORIES.filter((k) => k.startsWith('revenue.')).reduce((t, k) => t + s.ledger[k], 0);
     const exp = LEDGER_CATEGORIES.filter((k) => k.startsWith('cost.')).reduce((t, k) => t + s.ledger[k], 0);
     const treatedAll = acc.treated.emergency + acc.treated.outpatient + acc.treated.inpatient;
     const waitAll = acc.waitSum.emergency + acc.waitSum.outpatient + acc.waitSum.inpatient;
@@ -362,7 +366,7 @@ export class Simulation {
   /** Invariant check: cash_end == cash_start + revenue - costs for the in-progress year. */
   checkInvariants(): string[] {
     const s = this.state, errs: string[] = [];
-    const rev = s.ledger['revenue.emergency'] + s.ledger['revenue.outpatient'] + s.ledger['revenue.inpatient'];
+    const rev = LEDGER_CATEGORIES.filter((k) => k.startsWith('revenue.')).reduce((t, k) => t + s.ledger[k], 0);
     const cost = LEDGER_CATEGORIES.filter((k) => k.startsWith('cost.')).reduce((t, k) => t + s.ledger[k], 0);
     if (s.cashCents !== s.cashStartOfYearCents + rev - cost) errs.push('cash != start + revenue - costs');
     for (const svc of PLAYABLE) {

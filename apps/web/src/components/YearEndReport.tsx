@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
-import { END_YEAR, type AnnualSnapshot } from '@hospital/sim';
-import { runControl, type Controller } from '../controller';
+import { END_YEAR, type AnnualSnapshot, type BandSummary } from '@hospital/sim';
+import { runBands, runControl, type Controller } from '../controller';
 import { usd, pct, hrs, num } from '../format';
 
 function Spark({ pts, color }: { pts: number[]; color: string }) {
@@ -12,6 +12,8 @@ function Spark({ pts, color }: { pts: number[]; color: string }) {
 export function YearEndReport({ ctl }: { ctl: Controller }) {
   const s = ctl.sim.state, r = ctl.report!, all = s.snapshots, last = ctl.gameOver;
   const [cmp, setCmp] = useState<AnnualSnapshot[] | null>(null);
+  const [bands, setBands] = useState<BandSummary | null>(null);
+  const [prog, setProg] = useState(0);
   const ctlRun = useMemo(() => (cmp ? cmp : null), [cmp]);
   const treated = r.treated.emergency + r.treated.outpatient, arr = r.arrivals.emergency + r.arrivals.outpatient;
   const sum = (xs: AnnualSnapshot[], f: (x: AnnualSnapshot) => number) => xs.reduce((t, x) => t + f(x), 0);
@@ -32,6 +34,13 @@ export function YearEndReport({ ctl }: { ctl: Controller }) {
         </div>
         {r.unmet.emergency > 0 && <div className="banner warn">⚠ {num(r.unmet.emergency)} ER patients waited over {ctl.sim.a.queue.emergencyDiversionWaitTicks} h and were modelled as transferred / left unseen. Add ER capacity: an overloaded ER is a safety problem, not a saving.</div>}
         {r.unmet.outpatient > 0 && <div className="banner warn">⚠ {num(r.unmet.outpatient)} clinic patients left without being seen.</div>}
+        <h3>Your patients vs the MEPS population <small>(who actually arrived, compared with who lives in the community)</small></h3>
+        <table className="tbl"><thead><tr><th>Insurance</th><th>MEPS population share (95% CI)</th><th>Share of your arrivals</th><th>Over/under-use</th></tr></thead><tbody>
+          {(['private', 'medicare', 'medicaid', 'uninsured', 'other'] as const).map((k) => { const ds = ctl.asset.designBased?.payerShare[k], tot = Object.values(r.byPayer).reduce((t, g) => t + g.arrivals, 0) || 1, mine = (r.byPayer[k]?.arrivals ?? 0) / tot; return (
+            <tr key={k}><td>{k}</td><td>{ds ? `${(ds.est * 100).toFixed(1)}% ±${(196 * ds.se).toFixed(1)}` : '-'}</td><td>{pct(mine, 1)}</td><td>{ds ? `${(mine / ds.est).toFixed(2)}×` : '-'}</td></tr>); })}
+        </tbody></table>
+        <p className="note">Above 1× means that group arrives more often than its population share, because MEPS shows it uses more care per person (see the MEPS Lab). Your <i>mix of arrivals</i> comes from MEPS; <i>how you serve it</i> is the simulation.</p>
+        {ctl.literacy.asked > 0 && <div className="banner ok">Data IQ: {ctl.literacy.correct} of {ctl.literacy.asked} briefing questions correct · {usd(ctl.literacy.grantsCents)} in data-literacy grants (included in revenue).</div>}
         <h3>Equity: access and waits by insurance <small>(simulated outcomes; groups under 30 arrivals are unreliable)</small></h3>
         <table className="tbl"><thead><tr><th>Payer</th><th>Arrivals</th><th>Treated</th><th>Unmet</th><th>Avg wait</th><th>Avg OOP</th></tr></thead><tbody>
           {Object.entries(r.byPayer).sort().map(([k, g]) => (<tr key={k}><td>{k}{g.arrivals < 30 ? ' ⚠' : ''}</td><td>{g.arrivals}</td><td>{g.treated}</td><td>{g.unmet}</td><td>{g.treated ? hrs(g.waitTicksSum / g.treated) : '-'}</td><td>{g.treated ? usd(g.oopCents / g.treated) : '-'}</td></tr>))}
@@ -58,6 +67,19 @@ export function YearEndReport({ ctl }: { ctl: Controller }) {
               <tr><td>Avg patient OOP/visit</td><td>{usd(me.oop)}</td><td>{usd(co.oop)}</td></tr>
             </tbody></table>)}
           <p className="note">Both branches share one random stream; only decisions differ. Illustrates modelled tradeoffs, not causal evidence.</p>
+        </>)}
+        {all.length > 0 && (<>
+          <h3>How much is luck? <small>(your decisions, 20 other random seeds)</small></h3>
+          {!bands ? <button disabled={prog > 0} onClick={async () => setBands(await runBands(ctl.asset, s.actionLog, all.length, 20, setProg))}>{prog > 0 ? `Running… ${prog}/20` : 'Run 20-seed uncertainty bands'}</button> : (
+            <table className="tbl"><thead><tr><th></th><th>10th pct</th><th>Median</th><th>90th pct</th></tr></thead><tbody>
+              <tr><td>Final cash</td><td>{usd(bands.finalCash.p10, true)}</td><td>{usd(bands.finalCash.median, true)}</td><td>{usd(bands.finalCash.p90, true)}</td></tr>
+              <tr><td>Cumulative net</td><td>{usd(bands.cumulativeNet.p10, true)}</td><td>{usd(bands.cumulativeNet.median, true)}</td><td>{usd(bands.cumulativeNet.p90, true)}</td></tr>
+              <tr><td>Patients treated</td><td>{num(bands.treated.p10)}</td><td>{num(bands.treated.median)}</td><td>{num(bands.treated.p90)}</td></tr>
+              <tr><td>Unmet (transferred/left)</td><td>{num(bands.unmet.p10)}</td><td>{num(bands.unmet.median)}</td><td>{num(bands.unmet.p90)}</td></tr>
+              <tr><td>Avg wait</td><td>{hrs(bands.avgWaitTicks.p10)}</td><td>{hrs(bands.avgWaitTicks.median)}</td><td>{hrs(bands.avgWaitTicks.p90)}</td></tr>
+              <tr><td>Went bankrupt</td><td colSpan={3}>{pct(bands.bankruptShare)} of {bands.runs} runs</td></tr>
+            </tbody></table>)}
+          <p className="note">Variation from simulation randomness only (arrivals, payments, severities). These are not MEPS confidence intervals; those are on the Data tab.</p>
         </>)}
         <div className="row">
           {last ? <button className="primary" onClick={() => ctl.restart()}>New game</button> : <button className="primary" onClick={() => ctl.dismissReport()}>Continue to {r.year + 1} →</button>}

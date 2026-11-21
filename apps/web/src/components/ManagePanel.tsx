@@ -2,6 +2,7 @@ import type { Controller } from '../controller';
 import { PLAYABLE, type PlayableService } from '@hospital/sim';
 import { usd, hrs } from '../format';
 import { Badge } from './Badge';
+import { CoachCard } from './CoachCard';
 
 export function ManagePanel({ ctl }: { ctl: Controller }) {
   const sim = ctl.sim, s = sim.state, a = sim.a, n = s.year - 2024;
@@ -12,6 +13,7 @@ export function ManagePanel({ ctl }: { ctl: Controller }) {
   const hireMsg = (svc: PlayableService, role: 'nurse' | 'physician', dir: 1 | -1) => ctl.act({ type: dir > 0 ? 'hire' : 'fire', service: svc, role, count: 1 });
   return (
     <div className="panel-body">
+      <CoachCard ctl={ctl} />
       <section className="card">
         <h3>Year to date</h3>
         <div className="kv"><span>Revenue</span><b>{usd(rev)}</b></div>

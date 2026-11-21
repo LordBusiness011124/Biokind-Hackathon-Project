@@ -26,10 +26,10 @@ export interface Department {
 }
 
 export type LedgerCategory =
-  | 'revenue.emergency' | 'revenue.outpatient' | 'revenue.inpatient'
+  | 'revenue.emergency' | 'revenue.outpatient' | 'revenue.inpatient' | 'revenue.grant'
   | 'cost.payroll' | 'cost.upkeep' | 'cost.variable' | 'cost.overhead' | 'cost.capital' | 'cost.subsidy' | 'cost.process' | 'cost.penalty';
 export const LEDGER_CATEGORIES: LedgerCategory[] = [
-  'revenue.emergency', 'revenue.outpatient', 'revenue.inpatient', 'cost.payroll', 'cost.upkeep', 'cost.variable',
+  'revenue.emergency', 'revenue.outpatient', 'revenue.inpatient', 'revenue.grant', 'cost.payroll', 'cost.upkeep', 'cost.variable',
   'cost.overhead', 'cost.capital', 'cost.subsidy', 'cost.process', 'cost.penalty'];
 export type LedgerTotals = Record<LedgerCategory, number>;
 export interface LedgerEntry { tick: number; category: LedgerCategory; cents: number; ref: string; }
@@ -61,7 +61,8 @@ export type Action =
   | { type: 'fire'; service: PlayableService; role: 'nurse' | 'physician'; count: number }
   | { type: 'addRoom'; service: PlayableService }
   | { type: 'setProcessLevel'; level: number }
-  | { type: 'setSubsidy'; budgetCents: number };
+  | { type: 'setSubsidy'; budgetCents: number }
+  | { type: 'grant'; cents: number; reason: string };
 export interface ActionResult { ok: boolean; error?: string; }
 
 export type SimEvent =
