@@ -45,3 +45,4 @@ button:focus-visible { outline: 2px solid var(--amber); outline-offset: 1px; }
 .xbar { position: relative; height: 12px; background: #0b1220; } .xbar i { position: absolute; left: 0; top: 0; height: 100%; opacity: .9; } .xbar u { position: absolute; top: 4px; height: 4px; background: #ffffffbb; text-decoration: none; }
 .xv { text-align: right; font-size: 12px; } details { margin: 4px 0; } summary { cursor: pointer; color: var(--teal); }
 .pc-0-17, .pc-18-44, .pc-45-64, .pc-65\+ { background: #60a5fa; } .pc-65\+ { background: #f59e0b; } .pc-\<200\%FPL { background: #f59e0b; } .pc-200-399\%FPL { background: #60a5fa; } .pc-400\%\+FPL { background: #14b8a6; }
+.why p { margin: 6px 0; } .why ul { padding-left: 18px; } .why li { margin: 4px 0; } .why h4 { color: var(--text); font-size: 13px; }

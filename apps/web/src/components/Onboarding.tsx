@@ -16,6 +16,7 @@ export function Onboarding({ ctl, onClose }: { ctl: Controller; onClose: () => v
         <p className="note">Scenario game, not a forecast. Everything not survey-derived is labelled MODEL ASSUMPTION.</p>
         <div className="row">
           <button className="primary" onClick={() => { onClose(); ctl.openBriefing(true); }}>Start 2024</button>
+          <button onClick={() => { onClose(); ctl.openTab('why'); }}>Why MEPS matters first</button>
           {ctl.hasSave() && <button onClick={() => { ctl.load(); onClose(); }}>Continue saved game</button>}
         </div>
       </div>

@@ -7,9 +7,10 @@ import { DataInsightsPanel } from './components/DataInsightsPanel';
 import { AssumptionsPanel } from './components/AssumptionsPanel';
 import { YearEndReport } from './components/YearEndReport';
 import { BriefingModal } from './components/BriefingModal';
+import { WhyMeps } from './components/WhyMeps';
 import { Onboarding } from './components/Onboarding';
 
-const TABS = [['manage', 'Manage'], ['data', 'MEPS Lab'], ['about', 'Assumptions & About']] as const;
+const TABS = [['manage', 'Manage'], ['data', 'MEPS Lab'], ['why', 'Why MEPS'], ['about', 'About']] as const;
 
 export default function App() {
   const ctl = useMemo(() => new Controller(2024), []);
@@ -30,6 +31,7 @@ export default function App() {
           <nav role="tablist">{TABS.map(([k, label]) => <button key={k} role="tab" aria-selected={tab === k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{label}</button>)}</nav>
           {tab === 'manage' && <ManagePanel ctl={ctl} />}
           {tab === 'data' && <DataInsightsPanel ctl={ctl} />}
+          {tab === 'why' && <WhyMeps ctl={ctl} />}
           {tab === 'about' && <AssumptionsPanel ctl={ctl} />}
         </aside>
       </main>

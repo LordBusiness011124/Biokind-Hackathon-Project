@@ -7,6 +7,7 @@ An isometric pixel-art hospital management game where **the MEPS 2024 data is th
 - **Yearly MEPS briefing:** each year you predict a real statistic (who uses the ER most, how skewed spending is, what payers pay, ...), then see the answer with its 95% design-based confidence interval and source variable. Correct answers earn a small data-literacy grant. Questions are generated from the loaded data, so they can never disagree with it.
 - **Data Coach:** live advice that converts MEPS rates into capacity and finance guidance (expected arrivals, beds needed, payer-mix revenue, affordability).
 - **MEPS Lab:** explore use rates by age, insurance and income with confidence intervals, plus spending concentration and a methods primer.
+- **Why MEPS tab:** explains what the survey is, where each mechanic comes from, a live calculation of what happens if you ignore it (use-weighting, skew, payer), and its honest limits.
 - **Reports:** year-end and final reports compare your patient mix to the MEPS population, show equity and affordability, a no-intervention comparison, and 20-seed variability bands.
 - Every number is labelled MEPS_OBSERVED / MEPS_CALIBRATED / MODEL_ASSUMPTION / SIMULATED / DEMO_SYNTHETIC. Without the data asset the app runs in a clearly bannered DEMO mode.
 

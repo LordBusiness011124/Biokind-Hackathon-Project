@@ -81,6 +81,7 @@ export function YearEndReport({ ctl }: { ctl: Controller }) {
             </tbody></table>)}
           <p className="note">Variation from simulation randomness only (arrivals, payments, severities). These are not MEPS confidence intervals; those are on the Data tab.</p>
         </>)}
+        {last && <p className="note">Want to see why this mattered? The <b>Why MEPS</b> tab shows what each shortcut would have cost your ER revenue.</p>}
         <div className="row">
           {last ? <button className="primary" onClick={() => ctl.restart()}>New game</button> : <button className="primary" onClick={() => ctl.dismissReport()}>Continue to {r.year + 1} →</button>}
         </div>

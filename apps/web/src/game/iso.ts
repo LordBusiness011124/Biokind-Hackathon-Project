@@ -52,7 +52,7 @@ export const INTERACT = [
   { x: 13, y: 10, tab: 'manage', label: 'ER console: staffing & rooms' },
   { x: 23, y: 10, tab: 'manage', label: 'Ward console: beds & staffing' },
   { x: 25, y: 18, tab: 'manage', label: 'Clinic console: staffing & rooms' },
-  { x: 30, y: 14, tab: 'about', label: 'Info kiosk: data & assumptions' },
+  { x: 30, y: 14, tab: 'why', label: 'Info kiosk: why MEPS matters' },
 ];
 
 export type Prop = { x: number; y: number; tex: string; dy?: number; blocked?: boolean };
